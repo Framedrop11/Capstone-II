@@ -28,7 +28,7 @@ Stage 0 baseline: SRS FR-1.1–FR-7.3 and PR-1–PR-11. Planned paths/tests belo
 | FR-5.4 | Scheduled retraining | `ml/training` | `ml/tests/test_training.py` | 5 | Planned |
 | FR-5.5 | Fixed holdout promotion gate | `ml/evaluation` | `ml/tests/test_promotion_gate.py` | 5 | Planned |
 | FR-6.1 | Append audit for consent/score/view | `services/core-api/src/audit` | `tests/api-e2e/audit.test.ts` | 3–4 | Planned |
-| FR-6.2 | DB role denies audit update/delete | `services/core-api/migrations` | `tests/integration/audit-immutability.test.ts` | 1 | Implemented; database integration pending |
+| FR-6.2 | DB role denies audit update/delete | `services/core-api/migrations` | `tests/integration/audit-immutability.test.ts` | 1 | Implemented and integration verified |
 | FR-6.3 | Admin audit search/filter | `services/core-api/src/audit` | `tests/api-e2e/audit-search.test.ts` | 3 | Planned |
 | FR-6.4 | Patient sees own access history | `services/core-api/src/audit` | `tests/api-e2e/audit-history.test.ts` | 3 | Planned |
 | FR-7.1 | Reject invalid questionnaire fields | `services/core-api/openapi` | `tests/api-e2e/questionnaire-validation.test.ts` | 3 | Planned |

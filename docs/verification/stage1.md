@@ -62,27 +62,36 @@ ok 8 - notification and refresh token models require recipient and family fields
 
 `node --check services/core-api/migrate-mongo-config.cjs` — exit code 0.
 
-`npm run test:integration` — **failed before MongoDB startup** because no container runtime was available:
+`npm run test:integration` — passed using Docker Desktop and MongoDB 7.0 in Testcontainers:
 
 ```text
-not ok 1 - application MongoDB identity can insert/read audit rows but cannot update/delete
-error: 'Could not find a working container runtime strategy'
-code: 'ERR_TEST_FAILURE'
+> npm run test:integration
+> npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js
+
+TAP version 13
+# Subtest: application MongoDB identity can insert/read audit rows but cannot update/delete
+ok 1 - application MongoDB identity can insert/read audit rows but cannot update/delete
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
 ```
 
-`docker info --format '{{.ServerVersion}}'` — failed; Docker Desktop engine pipe was unavailable (access denied after attempting to start Docker Desktop).
+`docker info --format '{{.ServerVersion}}'` — sandbox execution initially returned access denied for the Docker engine pipe. Running the integration command with elevated execution reached Docker Desktop version `28.4.0`.
 
-The Testcontainers integration is required to prove FR-6.2 at the database permission level. The code and integration test exist, but that requirement is not yet verified against MongoDB.
+The first integration attempts exposed Docker mapped-port URI issues; the test now uses `directConnection=true` and the restricted application's own credentials. The successful test proves the app identity can insert/read audit rows, is denied update/delete with MongoDB authorization code 13, and is rejected for schema-invalid insert with validation code 121.
 
 ## Gate status
 
-**Stage 1 gate is not passed.** Unit checks pass, but the real MongoDB/Testcontainers integration test could not run because Docker Desktop has no accessible engine. Do not begin Stage 2 until the integration test passes in an environment with a working container runtime.
+**Stage 1 gate passed.** Lint, strict typecheck, all 8 unit tests, and the MongoDB/Testcontainers audit permission integration test pass. Stage 2 may begin.
 
 Additional limits: the local Node runtime is v20.17.0, below the repository Node 22 baseline. npm emitted engine warnings. No 12-month retention test, 100,000-record load run, or p95 write-latency measurement was performed; those are scheduled for Stage 11.
 
 ## Requirement coverage and gaps
 
-- FR-6.2: implemented in the migration and integration test; database proof pending.
+- FR-6.2: implemented in the migration and proven against MongoDB using the restricted app identity.
 - PR-2: no TTL expiry is configured and history indexes exist; retention/performance not measured.
 - PR-3 and PR-8: load tests/measurements remain for Stage 11.
 - All other requirements remain as mapped in `TRACEABILITY.md`; Stage 1 implements no authentication, API, worker, or ML behavior.
