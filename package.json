@@ -15,8 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js",
-    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js",
+    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js",
+    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js",
     "db:migrate": "migrate-mongo up -f services/core-api/migrate-mongo-config.cjs",
     "db:rollback": "migrate-mongo down -f services/core-api/migrate-mongo-config.cjs",
     "verify": "npm run lint && npm run typecheck && npm test"
@@ -27,6 +27,7 @@
     "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
     "@types/supertest": "^7.2.1",
+    "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.39.0",
     "globals": "^16.5.0",
     "supertest": "^7.3.2",
@@ -35,10 +36,16 @@
     "typescript-eslint": "^8.46.0"
   },
   "dependencies": {
+    "@prometheus-io/client": "^0.16.1",
+    "bullmq": "^6.7.5",
     "express": "^5.3.0",
+    "express-openapi-validator": "^5.6.2",
+    "ioredis": "^6.0.0",
     "jose": "^6.2.17",
     "migrate-mongo": "^14.0.7",
     "mongoose": "^8.24.8",
-    "openid-client": "^6.8.9"
+    "openid-client": "^6.8.9",
+    "swagger-ui-express": "^5.0.1",
+    "yaml": "^2.9.1"
   }
 }

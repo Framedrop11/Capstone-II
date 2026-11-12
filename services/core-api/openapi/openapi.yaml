@@ -1,0 +1,318 @@
+openapi: 3.1.0
+info:
+  title: CareLens API
+  version: 1.0.0
+  description: REST API for patient controlled risk screening. Screening aid, not a diagnosis.
+servers:
+  - url: /
+tags:
+  - name: Auth
+  - name: Patient
+  - name: Doctor
+  - name: Admin
+  - name: Ops
+paths:
+  /api/v1/auth/login:
+    get:
+      tags: [Auth]
+      operationId: beginLogin
+      responses:
+        '302': { description: Redirect to configured OIDC provider }
+        '500': { $ref: '#/components/responses/Error' }
+  /api/v1/auth/callback:
+    get:
+      tags: [Auth]
+      operationId: completeLogin
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Session created, content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshSession
+      responses:
+        '200': { description: Session rotated, content: { application/json: { schema: { $ref: '#/components/schemas/Session' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logout
+      responses:
+        '204': { description: Session revoked }
+  /api/v1/patient/questionnaires:
+    post:
+      tags: [Patient]
+      operationId: submitQuestionnaire
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, schema: { type: string, minLength: 1, maxLength: 128 } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [responses], properties: { responses: { type: object } }, additionalProperties: false }
+      responses:
+        '202': { description: Stored and queued, content: { application/json: { schema: { type: object, required: [questionnaireId, status, submittedAt], properties: { questionnaireId: { type: string }, status: { const: pending }, submittedAt: { type: string, format: date-time } } } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/patient/predictions:
+    get:
+      tags: [Patient]
+      operationId: listOwnPredictions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: Prediction page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/patient/reports/{predictionId}:
+    get:
+      tags: [Patient]
+      operationId: readOwnReport
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PredictionId' }]
+      responses:
+        '200': { description: Patient report, content: { application/json: { schema: { $ref: '#/components/schemas/Report' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/patient/consents:
+    get:
+      tags: [Patient]
+      operationId: listOwnConsents
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: Consent page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+    post:
+      tags: [Patient]
+      operationId: grantConsent
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [doctorId, predictionId, scope, expiresAt], properties: { doctorId: { type: string }, predictionId: { type: string }, scope: { type: string }, expiresAt: { type: string, format: date-time } }, additionalProperties: false }
+      responses:
+        '201': { description: Consent recorded, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/Error' }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/patient/consents/{consentId}/revoke:
+    post:
+      tags: [Patient]
+      operationId: revokeConsent
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: consentId, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Consent revoked, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/patient/audit:
+    get:
+      tags: [Patient]
+      operationId: listOwnAuditTrail
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: Audit page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+  /api/v1/doctor/shared-patients:
+    get:
+      tags: [Doctor]
+      operationId: listSharedPatients
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: Shared patient page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/v1/doctor/reports/{predictionId}/access:
+    post:
+      tags: [Doctor]
+      operationId: issueScopedReportToken
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/PredictionId' }]
+      responses:
+        '200': { description: Scoped token, content: { application/json: { schema: { type: object, required: [accessToken, expiresIn, purpose], properties: { accessToken: { type: string }, expiresIn: { type: integer, maximum: 300 }, purpose: { const: 'report:read' } } } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/doctor/reports/{predictionId}:
+    get:
+      tags: [Doctor]
+      operationId: readSharedReport
+      security: [{ reportToken: [] }]
+      parameters: [{ $ref: '#/components/parameters/PredictionId' }]
+      responses:
+        '200': { description: Shared report, content: { application/json: { schema: { $ref: '#/components/schemas/Report' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/doctor/outcomes:
+    post:
+      tags: [Doctor]
+      operationId: submitOutcome
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [predictionId, actualOutcome], properties: { predictionId: { type: string }, actualOutcome: { type: string, minLength: 1, maxLength: 200 } }, additionalProperties: false }
+      responses:
+        '201': { description: Outcome stored, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/users:
+    get:
+      tags: [Admin]
+      operationId: listUsers
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: User page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/users/{userId}/role:
+    patch:
+      tags: [Admin]
+      operationId: updateUserRole
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: userId, in: path, required: true, schema: { type: string } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { type: object, required: [role], properties: { role: { type: string, enum: [patient, doctor, admin] } }, additionalProperties: false }
+      responses:
+        '200': { description: Role updated, content: { application/json: { schema: { $ref: '#/components/schemas/User' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/audit:
+    get:
+      tags: [Admin]
+      operationId: searchAuditLog
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: patientId, in: query, schema: { type: string } }
+        - { name: actorId, in: query, schema: { type: string } }
+        - { name: action, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+      responses:
+        '200': { description: Audit page, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/model-versions:
+    get:
+      tags: [Admin]
+      operationId: listModelVersions
+      security: [{ bearerAuth: [] }]
+      parameters: [{ $ref: '#/components/parameters/Cursor' }, { $ref: '#/components/parameters/Limit' }]
+      responses:
+        '200': { description: Model versions, content: { application/json: { schema: { $ref: '#/components/schemas/Page' } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/model-versions/{version}/promote:
+    post:
+      tags: [Admin]
+      operationId: promoteModelVersion
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Promoted version, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '409': { $ref: '#/components/responses/Error' }
+  /api/v1/admin/model-versions/{version}/rollback:
+    post:
+      tags: [Admin]
+      operationId: rollbackModelVersion
+      security: [{ bearerAuth: [] }]
+      parameters: [{ name: version, in: path, required: true, schema: { type: string } }]
+      responses:
+        '200': { description: Rolled back version, content: { application/json: { schema: { type: object } } } }
+        '401': { $ref: '#/components/responses/Error' }
+        '403': { $ref: '#/components/responses/Error' }
+        '404': { $ref: '#/components/responses/Error' }
+  /healthz:
+    get:
+      tags: [Ops]
+      operationId: liveness
+      responses:
+        '200': { description: Process is alive }
+  /readyz:
+    get:
+      tags: [Ops]
+      operationId: readiness
+      responses:
+        '200': { description: Dependencies are ready }
+        '503': { description: A dependency is unavailable }
+  /metrics:
+    get:
+      tags: [Ops]
+      operationId: metrics
+      responses:
+        '200': { description: Prometheus exposition, content: { text/plain: { schema: { type: string } } } }
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    reportToken: { type: http, scheme: bearer, bearerFormat: JWT, description: Short lived token limited to one report }
+  parameters:
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100 } }
+    PredictionId: { name: predictionId, in: path, required: true, schema: { type: string, pattern: '^[a-fA-F0-9]{24}$' } }
+  responses:
+    Error:
+      description: Request failed
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+  schemas:
+    Error:
+      type: object
+      required: [error, requestId]
+      properties:
+        error: { type: string }
+        requestId: { type: string }
+        details: { type: array }
+    Session:
+      type: object
+      required: [accessToken, userId, role]
+      properties:
+        accessToken: { type: string }
+        userId: { type: string }
+        role: { type: string, enum: [patient, doctor, admin] }
+    Page:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items: { type: array, items: { type: object } }
+        nextCursor: { type: [string, 'null'] }
+    Report:
+      type: object
+      required: [predictionId, disclaimer]
+      properties:
+        predictionId: { type: string }
+        basicScore: { type: number }
+        mlScore: { type: [number, 'null'] }
+        scoreSource: { type: string }
+        modelVersion: { type: string }
+        explanation: { type: string }
+        disclaimer: { type: string }
+    User:
+      type: object
+      required: [userId, name, email, role]
+      properties:
+        userId: { type: string }
+        name: { type: string }
+        email: { type: string }
+        role: { type: string, enum: [patient, doctor, admin] }
