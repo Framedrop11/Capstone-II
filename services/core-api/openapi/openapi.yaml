@@ -53,7 +53,7 @@ paths:
         required: true
         content:
           application/json:
-            schema: { type: object, required: [responses], properties: { responses: { type: object } }, additionalProperties: false }
+            schema: { type: object, required: [responses], properties: { responses: { $ref: '#/components/schemas/FindriscResponses' } }, additionalProperties: false }
       responses:
         '202': { description: Stored and queued, content: { application/json: { schema: { type: object, required: [questionnaireId, status, submittedAt], properties: { questionnaireId: { type: string }, status: { const: pending }, submittedAt: { type: string, format: date-time } } } } } }
         '400': { $ref: '#/components/responses/Error' }
@@ -277,6 +277,20 @@ components:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
   schemas:
+    FindriscResponses:
+      type: object
+      required: [ageYears, bmi, waistCm, sex, activity30MinDaily, fruitVegetablesDaily, antihypertensiveTreatment, historyHighGlucose, familyHistoryDiabetes]
+      additionalProperties: false
+      properties:
+        ageYears: { type: integer, minimum: 18, maximum: 120 }
+        bmi: { type: number, minimum: 10, maximum: 100 }
+        waistCm: { type: number, minimum: 40, maximum: 200 }
+        sex: { type: string, enum: [female, male] }
+        activity30MinDaily: { type: boolean }
+        fruitVegetablesDaily: { type: boolean }
+        antihypertensiveTreatment: { type: boolean }
+        historyHighGlucose: { type: boolean }
+        familyHistoryDiabetes: { type: string, enum: [none, second_degree, first_degree] }
     Error:
       type: object
       required: [error, requestId]

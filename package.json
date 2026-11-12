@@ -15,10 +15,12 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js",
-    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js",
+    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js .test-dist/tests/unit/findrisc.test.js .test-dist/tests/unit/circuit-breaker.test.js",
+    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js && node --test .test-dist/tests/integration/worker-pipeline.test.js",
     "db:migrate": "migrate-mongo up -f services/core-api/migrate-mongo-config.cjs",
     "db:rollback": "migrate-mongo down -f services/core-api/migrate-mongo-config.cjs",
+    "worker:build": "tsc -p tsconfig.worker.json",
+    "worker:start": "npm run worker:build && node dist/worker/services/worker/src/index.js",
     "verify": "npm run lint && npm run typecheck && npm test"
   },
   "devDependencies": {

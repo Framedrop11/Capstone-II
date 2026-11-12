@@ -7,3 +7,4 @@
 - Local/test identity will use a mock OIDC adapter; production Google credentials are external deployment configuration, not repository content.
 - Non-production fixtures and seeds will contain synthetic data only.
 - No clinical efficacy or fitness-for-use claim is made.
+- Because the SRS/SDD specify neither a questionnaire schema nor a basic-score formula, the demonstration uses the adult FINDRISC Type 2 diabetes instrument (ADR-0011). Its normalized score is a point total divided by 26, not a calibrated probability; hypertension is not scored.

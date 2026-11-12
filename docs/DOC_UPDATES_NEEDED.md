@@ -10,5 +10,5 @@ The implementation decisions below are defined by the master prompt. Update the 
 6. Define concrete canary health thresholds (error rate, p95 latency, fallback rate and score-distribution drift) and the measurement windows.
 7. Clarify that audit immutability is enforced by a restricted database role as well as having no application update/delete route.
 8. Clarify the separate BullMQ Redis and cache Redis instances, their memory policies and purpose-specific availability behavior.
-9. Define the source and conditions for a published rule-based screening method, ensuring it applies to the supported questionnaire and is not invented clinical logic.
+9. Define the supported condition and source for the rule-based screening method. The demonstration selected FINDRISC for adult Type 2 diabetes only (ADR-0011); clarify applicability, the questionnaire fields, and that normalized points are not a probability.
 10. Reconcile any SRS/SDD requirement for a React GUI with the master prompt's explicit API-only current scope and deferred frontend.

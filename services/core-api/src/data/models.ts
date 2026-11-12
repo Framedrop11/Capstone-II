@@ -57,6 +57,7 @@ const predictionSchema = new Schema({
 }, timestamps);
 predictionSchema.index({ patientId: 1, predictionTimestamp: -1, _id: -1 }, { name: 'predictions_patient_cursor' });
 predictionSchema.index({ questionnaireId: 1, predictionTimestamp: -1 }, { name: 'predictions_questionnaire_history' });
+predictionSchema.index({ questionnaireId: 1 }, { unique: true, name: 'predictions_questionnaire_unique' });
 
 const outcomeSchema = new Schema({
   predictionId: { type: objectId, ref: 'Prediction', required: true },
@@ -79,6 +80,11 @@ const auditLogSchema = new Schema({
 auditLogSchema.index({ patientId: 1, timestamp: -1, _id: -1 }, { name: 'audit_patient_cursor' });
 auditLogSchema.index({ actorId: 1, timestamp: -1, _id: -1 }, { name: 'audit_actor_cursor' });
 auditLogSchema.index({ action: 1, timestamp: -1, _id: -1 }, { name: 'audit_action_cursor' });
+auditLogSchema.index({ 'details.questionnaireId': 1, action: 1 }, {
+  unique: true,
+  partialFilterExpression: { action: 'score_generated', 'details.questionnaireId': { $type: 'string' } },
+  name: 'audit_score_generated_questionnaire_unique',
+});
 
 const modelVersionSchema = new Schema({
   version: { type: String, required: true, unique: true, trim: true, maxlength: 100 },
@@ -99,6 +105,11 @@ const notificationSchema = new Schema({
   deliveredAt: { type: Date, default: null },
 }, timestamps);
 notificationSchema.index({ recipientId: 1, createdAt: -1, _id: -1 }, { name: 'notifications_recipient_cursor' });
+notificationSchema.index({ recipientId: 1, kind: 1, 'payload.questionnaireId': 1 }, {
+  unique: true,
+  partialFilterExpression: { 'payload.questionnaireId': { $type: 'string' } },
+  name: 'notifications_report_ready_unique',
+});
 
 const refreshTokenSchema = new Schema({
   userId: { type: objectId, ref: 'User', required: true },

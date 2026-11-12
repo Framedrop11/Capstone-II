@@ -13,15 +13,15 @@ SRS baseline: FR-1.1–FR-7.3 and PR-1–PR-11. Paths/tests identify implementat
 | FR-2.3 | Immediately block revoked doctor token | `packages/shared/src/blocklist` | `tests/security/revocation.test.ts` | 6 | Planned |
 | FR-2.4 | Require matching current consent | `services/core-api/src/http/routes/doctor.ts` | `tests/integration/core-api-contract.test.ts` (validator/auth smoke); consent flow pending | 3 | Implemented; full flow pending |
 | FR-3.1 | Persist/enqueue and immediately acknowledge | `services/core-api/src/http/routes/patient.ts`, `services/core-api/src/queue/scoring-queue.ts` | `tests/integration/core-api-contract.test.ts` (contract smoke); queue-to-database flow pending | 3–4 | Implemented; queue integration pending |
-| FR-3.2 | Independently scalable queue workers | `services/worker` | `tests/api-e2e/worker.test.ts` | 4 | Planned |
-| FR-3.3 | Recover crashed worker job | `services/worker` | `tests/resilience/worker-recovery.test.ts` | 4 | Planned |
-| FR-3.4 | Notify patient when report ready | `services/worker/src/notifications` | `tests/api-e2e/notifications.test.ts` | 4 | Planned |
-| FR-3.5 | Nightly re-score existing questionnaires | `services/worker/src/schedules` | `tests/api-e2e/rescore.test.ts` | 4 | Planned |
-| FR-4.1 | Worker computes basic score | `services/worker/src/scoring` | `services/worker/test/scoring.test.ts` | 4 | Planned |
-| FR-4.2 | Request ML refinement with bounded wait | `services/worker/src/ml-client` | `tests/resilience/ml-timeout.test.ts` | 4 | Planned |
-| FR-4.3 | Label basic-only fallback | `services/worker/src/scoring` | `tests/resilience/ml-fallback.test.ts` | 4 | Planned |
-| FR-4.4 | Recovering ML circuit breaker | `services/worker/src/ml-client` | `services/worker/test/circuit-breaker.test.ts` | 4 | Planned |
-| FR-4.5 | Record method and model version | `services/worker/src/predictions` | `tests/api-e2e/prediction-provenance.test.ts` | 4 | Planned |
+| FR-3.2 | Independently scalable queue workers | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; real BullMQ worker tested |
+| FR-3.3 | Recover crashed worker job | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; force-close and stalled job recovery tested |
+| FR-3.4 | Notify patient when report ready | `services/worker/src/worker.ts`, `services/core-api/src/data/models.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; Mongo notification persisted idempotently |
+| FR-3.5 | Nightly re-score existing questionnaires | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; nightly scheduler registered (full scan not time-triggered in test) |
+| FR-4.1 | Worker computes basic score | `services/worker/src/scoring/findrisc.ts` | `tests/unit/findrisc.test.ts`, `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; published deterministic score tested |
+| FR-4.2 | Request ML refinement with bounded wait | `services/worker/src/ml/client.ts` | `tests/unit/circuit-breaker.test.ts`; timeout enforced at 3s | 4 | Implemented; live ML service absent until Stage 5 |
+| FR-4.3 | Label basic-only fallback | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; missing ML path stores basic_only |
+| FR-4.4 | Recovering ML circuit breaker | `services/worker/src/ml/circuit-breaker.ts` | `tests/unit/circuit-breaker.test.ts` | 4 | Implemented and tested through open, half-open, and closed states |
+| FR-4.5 | Record method and model version | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; fallback provenance persisted |
 | FR-5.1 | Stable/canary with configurable traffic | `ml/registry` | `ml/tests/test_routing.py` | 5 | Planned |
 | FR-5.2 | Ramp or rollback based on health | `ml/canary` | `ml/tests/test_canary_controller.py` | 5 | Planned |
 | FR-5.3 | Doctor confirms outcome labels | `services/core-api/src/http/routes/doctor.ts` | `tests/integration/core-api-contract.test.ts` (contract wiring); outcome persistence pending | 3 | Implemented; persisted flow pending |
@@ -33,15 +33,15 @@ SRS baseline: FR-1.1–FR-7.3 and PR-1–PR-11. Paths/tests identify implementat
 | FR-6.4 | Patient sees own access history | `services/core-api/src/http/routes/patient.ts` | `tests/integration/core-api-contract.test.ts` (contract smoke); DB history pending | 3 | Implemented; persisted flow pending |
 | FR-7.1 | Reject invalid questionnaire fields | `services/core-api/openapi/openapi.yaml`, `services/core-api/src/http/app.ts` | `tests/integration/core-api-contract.test.ts` | 3 | Implemented and request validation smoke-tested |
 | FR-7.2 | Log internal failures safely | `packages/shared/src/logger` | `tests/security/error-envelope.test.ts` | 7 | Planned |
-| FR-7.3 | Never present partial prediction as complete | `services/worker/src/predictions` | `tests/resilience/prediction-state.test.ts` | 4 | Planned |
+| FR-7.3 | Never present partial prediction as complete | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | Implemented; prediction upsert occurs after scoring/fallback settles |
 | PR-1 | Horizontal scale under concurrent roles | `infra/k8s` | `tests/load/scaling.js` | 9,11 | Planned |
 | PR-2 | Retain 12 months history efficiently | `services/core-api/src/data` | `tests/integration/history-retention.test.ts` | 1,11 | No expiry index; retention/performance verification pending |
 | PR-3 | Support 100,000 prediction records | `services/core-api/src/data` | `tests/load/predictions.js` | 1,11 | Load verification pending |
 | PR-4 | Ack questionnaire <500 ms | `services/core-api/src/questionnaires` | `tests/load/questionnaire-ack.js` | 3,11 | Planned |
-| PR-5 | Basic score <1 s | `services/worker/src/scoring` | `services/worker/test/scoring.test.ts` | 4 | Planned |
-| PR-6 | ML timeout/fallback <=3 s | `services/worker/src/ml-client` | `tests/resilience/ml-timeout.test.ts` | 4 | Planned |
+| PR-5 | Basic score <1 s | `services/worker/src/scoring/findrisc.ts` | `tests/unit/findrisc.test.ts` | 4 | Deterministic local calculation; formal load timing pending |
+| PR-6 | ML timeout/fallback <=3 s | `services/worker/src/ml/client.ts` | `tests/integration/worker-pipeline.test.ts` | 4 | 3-second abort configured; live timeout measurement pending ML service |
 | PR-7 | 95% reports available <10 s | `services/worker`, `services/ml-service` | `tests/load/report-latency.js` | 5,11 | Planned |
 | PR-8 | 95% single-document writes <=3 s | `services/core-api/src/data` | `tests/load/database-writes.js` | 1,11 | Load verification pending |
 | PR-9 | 99% evaluation availability | `infra/k8s`, observability | `tests/resilience/availability.md` | 7,9,11 | Planned |
-| PR-10 | Recover failures <=30 s, no lost job | `services/worker`, `infra/k8s` | `tests/resilience/worker-recovery.test.ts` | 4,9 | Planned |
+| PR-10 | Recover failures <=30 s, no lost job | `services/worker/src/worker.ts` | `tests/integration/worker-pipeline.test.ts` | 4,9 | Redis stalled-job recovery tested locally; cluster recovery/time target pending |
 | PR-11 | Canary rollback <=5 minutes | `ml/canary` | `ml/tests/test_canary_controller.py` | 5 | Planned |

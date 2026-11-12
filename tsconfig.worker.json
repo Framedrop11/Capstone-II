@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist/worker",
+    "declaration": false,
+    "sourceMap": true
+  },
+  "include": ["packages/**/*.ts", "services/core-api/src/data/**/*.ts", "services/worker/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".test-dist"]
+}
