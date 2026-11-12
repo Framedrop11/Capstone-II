@@ -1,13 +1,13 @@
 # Requirement traceability
 
-Stage 0 baseline: SRS FR-1.1–FR-7.3 and PR-1–PR-11. Planned paths/tests below identify intended implementation ownership; verification status remains **not implemented** until the relevant stage passes its gate. No requirement is considered proven by this scaffold.
+SRS baseline: FR-1.1–FR-7.3 and PR-1–PR-11. Paths/tests identify implementation ownership. Status reflects the latest completed stage gate; later-stage requirements remain planned until implemented and verified.
 
 | ID | Requirement (short form) | Planned implementation | Proving test / evidence | Stage | Status |
 |---|---|---|---|---:|---|
-| FR-1.1 | Google OAuth sign-in, no passwords | `services/core-api/src/auth` | `tests/security/auth.test.ts` | 2 | Planned |
-| FR-1.2 | Short-lived identity/role JWT | `services/core-api/src/auth` | `tests/security/jwt.test.ts` | 2 | Planned |
-| FR-1.3 | Reject missing/expired/unauthorized JWT | `services/core-api/src/auth` | `tests/security/auth.test.ts` | 2 | Planned |
-| FR-1.4 | Patient/doctor/admin RBAC | `services/core-api/src/auth` | `tests/security/rbac.test.ts` | 2 | Planned |
+| FR-1.1 | Google OAuth sign-in, no passwords | `services/core-api/src/auth` | `tests/integration/auth-sessions.test.ts` | 2 | OIDC/PKCE flow implemented; mock tested; live Google unverified |
+| FR-1.2 | Short-lived identity/role JWT | `services/core-api/src/auth/access-tokens.ts` | `tests/unit/auth.test.ts` | 2 | Implemented and tested (15-minute JWT) |
+| FR-1.3 | Reject missing/expired/unauthorized JWT | `services/core-api/src/auth/middleware.ts` | `tests/unit/auth-middleware.test.ts` | 2 | Implemented and tested |
+| FR-1.4 | Patient/doctor/admin RBAC | `services/core-api/src/auth/middleware.ts` | `tests/unit/auth-middleware.test.ts` | 2 | Implemented; all role/route combinations tested |
 | FR-2.1 | Grant named doctor scoped timed report access | `services/core-api/src/consents` | `tests/api-e2e/consent.test.ts` | 3 | Planned |
 | FR-2.2 | Revoke consent | `services/core-api/src/consents` | `tests/api-e2e/consent.test.ts` | 3 | Planned |
 | FR-2.3 | Immediately block revoked doctor token | `packages/shared/src/blocklist` | `tests/security/revocation.test.ts` | 6 | Planned |

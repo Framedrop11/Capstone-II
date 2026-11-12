@@ -122,13 +122,23 @@ export type ModelVersionDocument = InferSchemaType<typeof modelVersionSchema>;
 export type NotificationDocument = InferSchemaType<typeof notificationSchema>;
 export type RefreshTokenDocument = InferSchemaType<typeof refreshTokenSchema>;
 
-export const User = models['User'] ?? mongoose.model('User', userSchema, 'users');
-export const Patient = models['Patient'] ?? mongoose.model('Patient', patientSchema, 'patients');
-export const Consent = models['Consent'] ?? mongoose.model('Consent', consentSchema, 'consents');
-export const Questionnaire = models['Questionnaire'] ?? mongoose.model('Questionnaire', questionnaireSchema, 'questionnaires');
-export const Prediction = models['Prediction'] ?? mongoose.model('Prediction', predictionSchema, 'predictions');
-export const Outcome = models['Outcome'] ?? mongoose.model('Outcome', outcomeSchema, 'outcomes');
-export const AuditLog = models['AuditLog'] ?? mongoose.model('AuditLog', auditLogSchema, 'auditLogs');
-export const ModelVersion = models['ModelVersion'] ?? mongoose.model('ModelVersion', modelVersionSchema, 'modelVersions');
-export const Notification = models['Notification'] ?? mongoose.model('Notification', notificationSchema, 'notifications');
-export const RefreshToken = models['RefreshToken'] ?? mongoose.model('RefreshToken', refreshTokenSchema, 'refreshTokens');
+export const User = (models['User'] as mongoose.Model<UserDocument> | undefined)
+  ?? mongoose.model<UserDocument>('User', userSchema, 'users');
+export const Patient = (models['Patient'] as mongoose.Model<PatientDocument> | undefined)
+  ?? mongoose.model<PatientDocument>('Patient', patientSchema, 'patients');
+export const Consent = (models['Consent'] as mongoose.Model<ConsentDocument> | undefined)
+  ?? mongoose.model<ConsentDocument>('Consent', consentSchema, 'consents');
+export const Questionnaire = (models['Questionnaire'] as mongoose.Model<QuestionnaireDocument> | undefined)
+  ?? mongoose.model<QuestionnaireDocument>('Questionnaire', questionnaireSchema, 'questionnaires');
+export const Prediction = (models['Prediction'] as mongoose.Model<PredictionDocument> | undefined)
+  ?? mongoose.model<PredictionDocument>('Prediction', predictionSchema, 'predictions');
+export const Outcome = (models['Outcome'] as mongoose.Model<OutcomeDocument> | undefined)
+  ?? mongoose.model<OutcomeDocument>('Outcome', outcomeSchema, 'outcomes');
+export const AuditLog = (models['AuditLog'] as mongoose.Model<AuditLogDocument> | undefined)
+  ?? mongoose.model<AuditLogDocument>('AuditLog', auditLogSchema, 'auditLogs');
+export const ModelVersion = (models['ModelVersion'] as mongoose.Model<ModelVersionDocument> | undefined)
+  ?? mongoose.model<ModelVersionDocument>('ModelVersion', modelVersionSchema, 'modelVersions');
+export const Notification = (models['Notification'] as mongoose.Model<NotificationDocument> | undefined)
+  ?? mongoose.model<NotificationDocument>('Notification', notificationSchema, 'notifications');
+export const RefreshToken = (models['RefreshToken'] as mongoose.Model<RefreshTokenDocument> | undefined)
+  ?? mongoose.model<RefreshTokenDocument>('RefreshToken', refreshTokenSchema, 'refreshTokens');

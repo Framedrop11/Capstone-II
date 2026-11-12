@@ -15,8 +15,8 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js",
-    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js",
+    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js",
+    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js",
     "db:migrate": "migrate-mongo up -f services/core-api/migrate-mongo-config.cjs",
     "db:rollback": "migrate-mongo down -f services/core-api/migrate-mongo-config.cjs",
     "verify": "npm run lint && npm run typecheck && npm test"
@@ -24,15 +24,21 @@
   "devDependencies": {
     "@eslint/js": "^9.39.0",
     "@testcontainers/mongodb": "^11.10.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^26.6.6",
+    "@types/supertest": "^7.2.1",
     "eslint": "^9.39.0",
     "globals": "^16.5.0",
+    "supertest": "^7.3.2",
     "testcontainers": "^11.10.0",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.46.0"
   },
   "dependencies": {
+    "express": "^5.3.0",
+    "jose": "^6.2.17",
     "migrate-mongo": "^14.0.7",
-    "mongoose": "^8.24.8"
+    "mongoose": "^8.24.8",
+    "openid-client": "^6.8.9"
   }
 }
