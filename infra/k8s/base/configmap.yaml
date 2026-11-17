@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: carelens-runtime
+data:
+  CARELENS_ENV: staging
+  AUTH_PROVIDER: google
+  MONGODB_DATABASE: carelens
+  PORT: "3000"
+  METRICS_PORT: "9464"
+  ML_SERVICE_URL: http://ml-service:8000
+  ML_STABLE_MODEL_PATH: /models/stable.joblib
+  ML_CANARY_TRAFFIC_PERCENT: "0"
+  TZ: UTC

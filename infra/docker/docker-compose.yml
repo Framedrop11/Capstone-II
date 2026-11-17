@@ -1,0 +1,357 @@
+name: carelens
+
+services:
+  mongo:
+    image: mongo:7.0.22
+    entrypoint: ["/bin/bash", "/scripts/mongo-entrypoint.sh"]
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Copy .env.example to .env first}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
+      MONGO_REPLICA_KEY: ${MONGO_REPLICA_KEY:?Set MONGO_REPLICA_KEY in .env}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+      - ./mongo-entrypoint.sh:/scripts/mongo-entrypoint.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'mongosh --quiet --username "$$MONGO_INITDB_ROOT_USERNAME" --password "$$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --eval "db.adminCommand(''ping'').ok" | grep -q 1',
+        ]
+      interval: 5s
+      timeout: 15s
+      retries: 20
+      start_period: 20s
+    mem_limit: 1g
+
+  mongo-rs-init:
+    image: mongo:7.0.22
+    depends_on:
+      mongo:
+        condition: service_healthy
+    environment:
+      MONGO_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
+    volumes:
+      - ./mongo-init-replica.js:/scripts/init-replica.js:ro
+    entrypoint: ["mongosh"]
+    command:
+      [
+        "mongodb://${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/admin?authSource=admin",
+        "/scripts/init-replica.js",
+      ]
+    restart: "no"
+
+  queue-redis:
+    image: redis:7.4.2-alpine
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
+    volumes:
+      - queue-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 320m
+
+  cache-redis:
+    image: redis:7.4.2-alpine
+    command:
+      [
+        "redis-server",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "allkeys-lru",
+      ]
+    volumes:
+      - cache-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: 320m
+
+  database-migrate:
+    image: carelens-node:local
+    command: ["npm", "run", "db:migrate"]
+    environment:
+      MONGODB_MIGRATION_URI: mongodb://${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/admin?authSource=admin&replicaSet=rs0
+      MONGODB_DATABASE: carelens
+      MONGODB_APP_USER: carelens_app
+      MONGODB_APP_PASSWORD: ${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}
+    depends_on:
+      mongo-rs-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  ml-service:
+    image: carelens-ml:local
+    build:
+      context: ../..
+      dockerfile: services/ml-service/Dockerfile
+    environment:
+      ML_MODEL_DIR: /app/models
+      ML_STABLE_MODEL_PATH: /app/models/stable.joblib
+      ML_CANARY_MODEL_PATH: ${ML_CANARY_MODEL_PATH:-}
+      ML_CANARY_TRAFFIC_PERCENT: ${ML_CANARY_TRAFFIC_PERCENT:-0}
+      CACHE_REDIS_URL: redis://cache-redis:6379/0
+    ports:
+      - "${ML_HOST_PORT:-8000}:8000"
+    depends_on:
+      cache-redis:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 40s
+    mem_limit: 1g
+    restart: unless-stopped
+
+  core-api:
+    image: carelens-node:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/node-service.Dockerfile
+    command: ["node", "dist/core-api/services/core-api/src/server.js"]
+    environment:
+      CARELENS_ENV: local
+      AUTH_PROVIDER: ${AUTH_PROVIDER:-google}
+      CARELENS_MOCK_DEMO_ACCOUNTS: "true"
+      OIDC_REDIRECT_URI: ${FRONTEND_PUBLIC_URL:-http://localhost:18082}/api/v1/auth/callback
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      JWT_ISSUER: http://localhost:3000
+      JWT_AUDIENCE: carelens-api
+      JWT_SIGNING_SECRET: ${JWT_SIGNING_SECRET:?Set JWT_SIGNING_SECRET in .env}
+      OIDC_TRANSACTION_KEY: ${OIDC_TRANSACTION_KEY:?Set OIDC_TRANSACTION_KEY in .env}
+      MONGODB_URI: mongodb://carelens_app:${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}@mongo:27017/carelens?authSource=carelens&replicaSet=rs0
+      MONGODB_DATABASE: carelens
+      QUEUE_REDIS_URL: redis://queue-redis:6379/0
+      CACHE_REDIS_URL: redis://cache-redis:6379/0
+      PORT: 3000
+    ports:
+      - "3000:3000"
+    depends_on:
+      database-migrate:
+        condition: service_completed_successfully
+      queue-redis:
+        condition: service_healthy
+      cache-redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 4s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  frontend:
+    image: carelens-frontend:local
+    build:
+      context: ../..
+      dockerfile: frontend/Dockerfile
+    environment:
+      CARELENS_ENVIRONMENT: ${CARELENS_ENVIRONMENT:-local}
+      CARELENS_AUTH_PROVIDER: ${AUTH_PROVIDER:-google}
+    ports:
+      - "${FRONTEND_HOST_PORT:-18082}:8080"
+    depends_on:
+      core-api:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:8080/healthz",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    mem_limit: 128m
+    restart: unless-stopped
+
+  selenium-chrome:
+    image: selenium/standalone-chrome:4.52.0-20261101
+    profiles: [e2e]
+    shm_size: 2gb
+    ports:
+      - "4444:4444"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SE_NODE_MAX_SESSIONS: 1
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -fsS http://localhost:4444/status | grep -q ''"ready": true''',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 2g
+
+  selenium-firefox:
+    image: selenium/standalone-firefox:4.52.0-20261101
+    profiles: [e2e]
+    shm_size: 2gb
+    ports:
+      - "4445:4444"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SE_NODE_MAX_SESSIONS: 1
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'curl -fsS http://localhost:4444/status | grep -q ''"ready": true''',
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    mem_limit: 2g
+
+  worker:
+    image: carelens-node:local
+    command: ["node", "dist/worker/services/worker/src/index.js"]
+    environment:
+      MONGODB_URI: mongodb://carelens_app:${MONGODB_APP_PASSWORD:?Set MONGODB_APP_PASSWORD in .env}@mongo:27017/carelens?authSource=carelens&replicaSet=rs0
+      MONGODB_DATABASE: carelens
+      QUEUE_REDIS_URL: redis://queue-redis:6379/0
+      CACHE_REDIS_URL: redis://cache-redis:6379/0
+      ML_SERVICE_URL: http://ml-service:8000
+      METRICS_PORT: 9464
+    expose: ["9464"]
+    depends_on:
+      database-migrate:
+        condition: service_completed_successfully
+      queue-redis:
+        condition: service_healthy
+      cache-redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9464/metrics').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+      start_period: 20s
+    mem_limit: 512m
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command:
+      [
+        "--config.file=/etc/prometheus/prometheus.yml",
+        "--storage.tsdb.path=/prometheus",
+        "--storage.tsdb.retention.time=7d",
+        "--web.enable-lifecycle",
+      ]
+    volumes:
+      - ../monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../monitoring/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      core-api:
+        condition: service_healthy
+      worker:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "wget",
+          "-q",
+          "-O",
+          "/dev/null",
+          "http://127.0.0.1:9090/-/healthy",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?Set GRAFANA_PASSWORD in .env}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/carelens-overview.json:/var/lib/grafana/dashboards/carelens-overview.json:ro
+    ports:
+      - "3001:3000"
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    healthcheck:
+      test:
+        ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
+    mem_limit: 512m
+    restart: unless-stopped
+
+volumes:
+  mongo-data:
+  queue-redis-data:
+  cache-redis-data:
+  prometheus-data:
+  grafana-data:

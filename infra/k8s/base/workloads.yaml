@@ -1,0 +1,381 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  labels:
+    app.kubernetes.io/name: core-api
+    app.kubernetes.io/part-of: carelens
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: core-api
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: core-api
+        app.kubernetes.io/part-of: carelens
+        carelens.io/role: api
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "3000"
+    spec:
+      serviceAccountName: carelens
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: core-api
+      containers:
+        - name: core-api
+          image: ghcr.io/example-org/carelens-node:replace-with-immutable-tag
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/core-api/services/core-api/src/server.js"]
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: carelens-runtime
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: MONGODB_URI
+            - name: QUEUE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: QUEUE_REDIS_URL
+            - name: CACHE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: CACHE_REDIS_URL
+            - name: JWT_SIGNING_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: JWT_SIGNING_SECRET
+            - name: OIDC_TRANSACTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: OIDC_TRANSACTION_KEY
+            - name: OIDC_REDIRECT_URI
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: OIDC_REDIRECT_URI
+            - name: JWT_ISSUER
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: JWT_ISSUER
+            - name: JWT_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: JWT_AUDIENCE
+            - name: GOOGLE_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: GOOGLE_CLIENT_ID
+            - name: GOOGLE_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: GOOGLE_CLIENT_SECRET
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+  labels:
+    app.kubernetes.io/name: core-api
+    app.kubernetes.io/part-of: carelens
+spec:
+  selector:
+    app.kubernetes.io/name: core-api
+  ports:
+    - name: http
+      port: 3000
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: carelens
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/part-of: carelens
+        carelens.io/role: worker
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "9464"
+    spec:
+      serviceAccountName: carelens
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: worker
+      containers:
+        - name: worker
+          image: ghcr.io/example-org/carelens-node:replace-with-immutable-tag
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/worker/services/worker/src/index.js"]
+          ports:
+            - name: metrics
+              containerPort: 9464
+          envFrom:
+            - configMapRef:
+                name: carelens-runtime
+          env:
+            - name: MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: MONGODB_URI
+            - name: QUEUE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: QUEUE_REDIS_URL
+            - name: CACHE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: CACHE_REDIS_URL
+          startupProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: carelens
+spec:
+  selector:
+    app.kubernetes.io/name: worker
+  ports:
+    - name: metrics
+      port: 9464
+      targetPort: metrics
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service
+  labels:
+    app.kubernetes.io/name: ml-service
+    app.kubernetes.io/part-of: carelens
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ml-service
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ml-service
+        app.kubernetes.io/part-of: carelens
+        carelens.io/role: ml
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: /metrics
+        prometheus.io/port: "8000"
+    spec:
+      serviceAccountName: carelens
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: ml-service
+      initContainers:
+        - name: initialize-stable-model
+          image: ghcr.io/example-org/carelens-ml:replace-with-immutable-tag
+          command: ["sh", "-c", "test -s /models/stable.joblib || cp /app/models/stable.joblib /models/stable.joblib"]
+          volumeMounts:
+            - name: model-artifacts
+              mountPath: /models
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      containers:
+        - name: ml-service
+          image: ghcr.io/example-org/carelens-ml:replace-with-immutable-tag
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: carelens-runtime
+          env:
+            - name: CACHE_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: CACHE_REDIS_URL
+          volumeMounts:
+            - name: model-artifacts
+              mountPath: /models
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 18
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "2"
+              memory: 1Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+      volumes:
+        - name: model-artifacts
+          persistentVolumeClaim:
+            claimName: model-artifacts
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  labels:
+    app.kubernetes.io/name: ml-service
+    app.kubernetes.io/part-of: carelens
+spec:
+  selector:
+    app.kubernetes.io/name: ml-service
+  ports:
+    - name: http
+      port: 8000
+      targetPort: http
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: carelens
+automountServiceAccountToken: false
+imagePullSecrets:
+  - name: ghcr-pull

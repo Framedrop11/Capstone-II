@@ -1,0 +1,70 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: model-retrain
+spec:
+  schedule: "0 3 * * 0"
+  timeZone: UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 1800
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 4
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      activeDeadlineSeconds: 3600
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: model-retrain
+            carelens.io/role: worker
+        spec:
+          serviceAccountName: carelens
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            fsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: retrain
+              image: ghcr.io/example-org/carelens-ml:replace-with-immutable-tag
+              imagePullPolicy: IfNotPresent
+              command: ["sh", "-c", "python -m carelens_ml.retrain --version retrain-${JOB_NAME} --benchmark /app/data/uci-early-stage-diabetes.csv --model-dir /models"]
+              env:
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: MONGODB_DATABASE
+                  valueFrom:
+                    configMapKeyRef:
+                      name: carelens-runtime
+                      key: MONGODB_DATABASE
+                - name: MONGODB_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: carelens-runtime
+                      key: MONGODB_URI
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  cpu: "2"
+                  memory: 2Gi
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              volumeMounts:
+                - name: model-artifacts
+                  mountPath: /models
+          volumes:
+            - name: model-artifacts
+              persistentVolumeClaim:
+                claimName: model-artifacts

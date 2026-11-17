@@ -1,18 +1,85 @@
 name: PR checks
+
 on:
   pull_request:
   push:
     branches: [main]
+
 permissions:
   contents: read
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  scaffold:
+  verify:
+    name: Lint, type-check, unit and integration tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: npm ci
+      - run: npm run verify
+      - run: python -m pip install -r services/ml-service/requirements-test.txt
+      - run: python -m pytest -q services/ml-service/tests
+      - run: npm run test:integration
+
+  api-and-manifest-contracts:
+    name: OpenAPI and Kubernetes validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.27"
+      - name: Lint GitHub Actions workflows
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:1.7.12
+      - name: Lint OpenAPI with Spectral
+        run: npx --yes @stoplight/spectral-cli@6.17.0 lint --ruleset .spectral.yaml services/core-api/openapi/openapi.yaml
+      - name: Check OpenAPI for breaking changes
+        env:
+          BASE_REF: ${{ github.base_ref || 'main' }}
+        run: go run github.com/oasdiff/oasdiff@v1.37.0 breaking --fail-on ERR "origin/${BASE_REF}:services/core-api/openapi/openapi.yaml" services/core-api/openapi/openapi.yaml
+      - name: Validate Kustomize overlays against Kubernetes schemas
+        shell: bash
+        run: |
+          for overlay in infra/k8s/base infra/k8s/overlays/dev infra/k8s/overlays/staging infra/k8s/overlays/prod; do
+            kubectl kustomize "$overlay" | go run github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7 -strict -summary -kubernetes-version 1.32.2 -
+          done
+
+  supply-chain:
+    name: Secret and dependency scans
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Gitleaks secret scan
+        run: docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source=/repo --redact
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run verify
+      - name: npm dependency audit
+        run: npm audit --audit-level=high

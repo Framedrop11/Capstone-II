@@ -1,0 +1,33 @@
+name: Model gate
+
+on:
+  workflow_dispatch:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  train-and-check-promotion-gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: python -m pip install -r services/ml-service/requirements-test.txt
+      - run: python -m pytest -q services/ml-service/tests
+      - name: Train the fixed-holdout baseline
+        run: python services/ml-service/train.py --mode stable --version ci-stable --model-dir "$RUNNER_TEMP/model-gate"
+      - name: Confirm the unchanged fixed-holdout candidate is rejected
+        shell: bash
+        run: |
+          set +e
+          python services/ml-service/train.py --mode candidate --version ci-candidate --model-dir "$RUNNER_TEMP/model-gate" --c 0.5
+          status=$?
+          set -e
+          if [[ "$status" -ne 2 ]]; then
+            echo "Expected the promotion gate to reject a tied/worse candidate (exit 2), got $status" >&2
+            exit 1
+          fi

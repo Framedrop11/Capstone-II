@@ -8,6 +8,15 @@ coverage/
 __pycache__/
 .pytest_cache/
 .venv/
+/services/ml-service/target/
 *.py[cod]
 .DS_Store
 .stage0_extract/
+.lighthouseci/
+.secrets/
+/logs/
+/*.log
+/reports/
+/kind-export/
+/kind-exports/
+.vercel/

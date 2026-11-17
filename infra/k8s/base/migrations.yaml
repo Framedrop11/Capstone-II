@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: database-migrate
+  labels:
+    app.kubernetes.io/name: database-migrate
+    app.kubernetes.io/part-of: carelens
+  annotations:
+    argocd.argoproj.io/hook: PreSync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation,HookSucceeded
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: database-migrate
+        carelens.io/role: worker
+    spec:
+      serviceAccountName: carelens
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migrate
+          image: ghcr.io/example-org/carelens-node:replace-with-immutable-tag
+          imagePullPolicy: IfNotPresent
+          command: ["npm", "run", "db:migrate"]
+          envFrom:
+            - configMapRef:
+                name: carelens-runtime
+          env:
+            - name: MONGODB_MIGRATION_URI
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: MONGODB_MIGRATION_URI
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]

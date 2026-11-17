@@ -1,0 +1,30 @@
+{
+  "annotations": { "list": [] },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    { "id": 1, "title": "API request rate", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "sum by (route) (rate(carelens_http_requests_total{route!=\"/metrics\"}[5m]))", "legendFormat": "{{route}}", "refId": "A" }] },
+    { "id": 2, "title": "API p95 latency", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, route) (rate(carelens_http_request_duration_seconds_bucket{route!=\"/metrics\"}[5m])))", "legendFormat": "{{route}}", "refId": "A" }] },
+    { "id": 3, "title": "API 5xx rate", "type": "timeseries", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "sum by (route) (rate(carelens_http_requests_total{status_code=~\"5..\"}[5m]))", "legendFormat": "{{route}}", "refId": "A" }] },
+    { "id": 4, "title": "Scoring queue depth", "type": "timeseries", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "carelens_worker_queue_jobs", "legendFormat": "{{state}}", "refId": "A" }] },
+    { "id": 5, "title": "Scoring job p95 duration", "type": "timeseries", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "histogram_quantile(0.95, sum by (le, job_name) (rate(carelens_worker_job_duration_seconds_bucket[5m])))", "legendFormat": "{{job_name}}", "refId": "A" }] },
+    { "id": 6, "title": "ML latency p95", "type": "timeseries", "gridPos": { "h": 8, "w": 8, "x": 0, "y": 16 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "histogram_quantile(0.95, sum by (le) (rate(carelens_ml_request_duration_seconds_bucket[5m])))", "legendFormat": "ML request", "refId": "A" }] },
+    { "id": 7, "title": "Basic-only fallback ratio", "type": "timeseries", "gridPos": { "h": 8, "w": 8, "x": 8, "y": 16 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "sum(rate(carelens_scoring_fallbacks_total[5m])) / clamp_min(sum(rate(carelens_worker_jobs_total{outcome=\"success\",job_name=\"score-questionnaire\"}[5m])), 1)", "legendFormat": "fallback ratio", "refId": "A" }] },
+    { "id": 8, "title": "ML circuit breaker", "type": "stat", "gridPos": { "h": 8, "w": 8, "x": 16, "y": 16 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "fieldConfig": { "defaults": { "mappings": [{ "type": "value", "options": { "0": { "text": "closed", "color": "green" }, "1": { "text": "open", "color": "red" }, "2": { "text": "half-open", "color": "yellow" } } }] }, "overrides": [] }, "targets": [{ "expr": "carelens_ml_circuit_breaker_state", "legendFormat": "breaker", "refId": "A" }] },
+    { "id": 9, "title": "Mean screening score (drift signal)", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "sum(rate(carelens_prediction_score_sum[5m])) / clamp_min(sum(rate(carelens_prediction_score_count[5m])), 1)", "legendFormat": "5m mean", "refId": "A" }, { "expr": "sum(rate(carelens_prediction_score_sum[1h])) / clamp_min(sum(rate(carelens_prediction_score_count[1h])), 1)", "legendFormat": "1h mean", "refId": "B" }] },
+    { "id": 10, "title": "Cache read hit ratio", "type": "timeseries", "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 }, "datasource": { "type": "prometheus", "uid": "prometheus" }, "targets": [{ "expr": "sum(rate(carelens_cache_operations_total{operation=\"read\",result=\"hit\"}[15m])) / clamp_min(sum(rate(carelens_cache_operations_total{operation=\"read\",result=~\"hit|miss\"}[15m])), 0.001)", "legendFormat": "hit ratio", "refId": "A" }] }
+  ],
+  "refresh": "30s",
+  "schemaVersion": 39,
+  "tags": ["carelens", "operations"],
+  "templating": { "list": [] },
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "CareLens Service Overview",
+  "uid": "carelens-service-overview",
+  "version": 1
+}

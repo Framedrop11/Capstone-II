@@ -1,0 +1,20 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - /etc/prometheus/alerts.yml
+
+scrape_configs:
+  - job_name: carelens-core-api
+    metrics_path: /metrics
+    static_configs:
+      - targets: [core-api:3000]
+  - job_name: carelens-worker
+    metrics_path: /metrics
+    static_configs:
+      - targets: [worker:9464]
+  - job_name: carelens-ml-service
+    metrics_path: /metrics
+    static_configs:
+      - targets: [ml-service:8000]

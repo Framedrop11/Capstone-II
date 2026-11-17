@@ -1,0 +1,10 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: carelens
+spec:
+  tls:
+    - hosts: [carelens-dev.example.invalid]
+      secretName: carelens-tls
+  rules:
+    - host: carelens-dev.example.invalid

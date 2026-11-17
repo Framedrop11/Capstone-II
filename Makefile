@@ -1,9 +1,9 @@
-.PHONY: up down test lint verify seed e2e load
+.PHONY: up down test lint verify seed e2e load fe-dev fe-client fe-test fe-lint fe-build fe-e2e fe-a11y fe-verify
 
 up:
-	@echo "Local service stack is added in Stage 8."
+	docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
 down:
-	@echo "Local service stack is added in Stage 8."
+	docker compose --env-file .env -f infra/docker/docker-compose.yml down
 test:
 	npm test
 lint:
@@ -11,8 +11,24 @@ lint:
 verify:
 	npm run verify
 seed:
-	@echo "Synthetic seed data is added with the data layer."
+	docker compose --env-file .env -f infra/docker/docker-compose.yml exec core-api node scripts/seed-local.mjs
 e2e:
-	@echo "API E2E suite is added in Stage 11."
+	npm run test:e2e
 load:
-	@echo "k6 scenarios are added in Stage 11."
+	docker run --rm -e BASE_URL=http://host.docker.internal:3000 -v "$(CURDIR)/tests/load:/scripts:ro" grafana/k6:0.52.0 run /scripts/staging-smoke.js
+fe-dev:
+	npm run fe:dev
+fe-client:
+	npm run fe:client
+fe-test:
+	npm run fe:test
+fe-lint:
+	npm run fe:lint
+fe-build:
+	npm run fe:build
+fe-e2e:
+	npm run fe:e2e
+fe-a11y:
+	npm run fe:a11y
+fe-verify:
+	npm run fe:verify
