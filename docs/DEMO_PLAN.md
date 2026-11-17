@@ -1,6 +1,6 @@
 # CareLens demo completion plan
 
-Status: D0 passed; D1 blocked at entry because Docker Desktop’s Linux engine is unavailable. This plan is not evidence that deployment or runtime gates have passed. See `docs/MANUAL_INPUTS.md` and the reports under `docs/verification/demo-D*.md` for input state and observed results.
+Status: D0 and D1 passed locally; D2 is next. This plan is not evidence that deployment or runtime gates have passed. See `docs/MANUAL_INPUTS.md` and the reports under `docs/verification/demo-D*.md` for input state and observed results.
 
 ## Known gaps mapped to stages
 
