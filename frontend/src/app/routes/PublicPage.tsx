@@ -54,7 +54,9 @@ export function PublicPage() {
             Early screening can help start a conversation with your doctor.
           </p>
           <div className="cl-public-assurance">
-            <span className="cl-assurance-mark" aria-hidden="true">✓</span>
+            <span className="cl-assurance-mark" aria-hidden="true">
+              ✓
+            </span>
             <p>Screening aid, not a diagnosis.</p>
           </div>
         </div>
@@ -83,11 +85,19 @@ export function PublicPage() {
             </label>
           )}
           <Button className="cl-google-button" onClick={() => void signIn()} disabled={isSigningIn}>
-            <span className="cl-google-g" aria-hidden="true">G</span>
+            <span className="cl-google-g" aria-hidden="true">
+              G
+            </span>
             {isSigningIn ? 'Opening secure sign-in…' : 'Sign in with Google'}
           </Button>
-          {message && <p className="cl-auth-error" role="alert">{message}</p>}
-          <p className="cl-auth-note">Your screening information is handled through your CareLens session.</p>
+          {message && (
+            <p className="cl-auth-error" role="alert">
+              {message}
+            </p>
+          )}
+          <p className="cl-auth-note">
+            Your screening information is handled through your CareLens session.
+          </p>
         </Card>
       </section>
     </main>

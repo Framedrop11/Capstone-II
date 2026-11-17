@@ -45,6 +45,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Rotates the browser-managed HttpOnly carelensRefresh cookie. Open Swagger UI on the same origin so the browser can send the cookie automatically. */
         post: operations["refreshSession"];
         delete?: never;
         options?: never;
@@ -61,6 +62,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
+        /** @description Revokes the browser-managed HttpOnly carelensRefresh cookie and clears it. The browser sends the cookie automatically when Swagger UI and API share an origin. */
         post: operations["logout"];
         delete?: never;
         options?: never;
