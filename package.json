@@ -6,7 +6,8 @@
   "workspaces": [
     "packages/*",
     "services/core-api",
-    "services/worker"
+    "services/worker",
+    "frontend"
   ],
   "engines": {
     "node": ">=22 <25"
@@ -15,8 +16,18 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "build:test": "tsc -p tsconfig.test.json",
-    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js .test-dist/tests/unit/findrisc.test.js .test-dist/tests/unit/circuit-breaker.test.js",
-    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js && node --test .test-dist/tests/integration/worker-pipeline.test.js",
+    "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js .test-dist/tests/unit/findrisc.test.js .test-dist/tests/unit/circuit-breaker.test.js .test-dist/tests/unit/observability.test.js",
+    "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/auth-popup.test.js && node --test .test-dist/tests/integration/patient-experience.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js && node --test .test-dist/tests/integration/worker-pipeline.test.js && node --test .test-dist/tests/integration/ml-service.test.js && node --test .test-dist/tests/integration/report-cache.test.js",
+    "test:e2e": "npm run build:test && node --test .test-dist/tests/api-e2e/patient-doctor-journey.test.js",
+    "fe:dev": "npm run dev --workspace @carelens/frontend",
+    "fe:client": "npm run client:generate --workspace @carelens/frontend",
+    "fe:test": "npm test --workspace @carelens/frontend",
+    "fe:lint": "npm run lint --workspace @carelens/frontend",
+    "fe:build": "npm run build --workspace @carelens/frontend",
+    "fe:e2e": "npm run e2e --workspace @carelens/frontend",
+    "fe:lighthouse": "npm run lighthouse --workspace @carelens/frontend",
+    "fe:a11y": "npm run a11y --workspace @carelens/frontend",
+    "fe:verify": "npm run verify --workspace @carelens/frontend",
     "db:migrate": "migrate-mongo up -f services/core-api/migrate-mongo-config.cjs",
     "db:rollback": "migrate-mongo down -f services/core-api/migrate-mongo-config.cjs",
     "worker:build": "tsc -p tsconfig.worker.json",
@@ -31,6 +42,7 @@
     "@types/supertest": "^7.2.1",
     "@types/swagger-ui-express": "^4.1.8",
     "eslint": "^9.39.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^16.5.0",
     "supertest": "^7.3.2",
     "testcontainers": "^11.10.0",

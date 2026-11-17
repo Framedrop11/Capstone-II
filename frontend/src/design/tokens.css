@@ -1,0 +1,57 @@
+:root {
+  --blue-50: #f4f7fe;
+  --blue-100: #e7eefc;
+  --blue-200: #cedcf8;
+  --blue-300: #a9c2ef;
+  --blue-400: #7399de;
+  --blue-500: #3b6cc2;
+  --blue-600: #1d4fae;
+  --blue-700: #1240a0;
+  --blue-800: #09318d;
+  --blue-900: #041b55;
+
+  --pink-50: #fff1f8;
+  --pink-100: #ffe0ef;
+  --pink-200: #ffc2df;
+  --pink-300: #ff95c9;
+  --pink-400: #ff7fbd;
+  --pink-500: #ff69b4;
+  --pink-600: #e63d91;
+  --pink-700: #bf176d;
+  --pink-800: #8f1253;
+  --pink-900: #5c1039;
+
+  --surface: #ffffff;
+  --text-primary: var(--blue-900);
+  --text-on-accent: #000000;
+  --semantic-error-background: #fff3f2;
+  --semantic-error-text: #8a1f17;
+  --semantic-success-background: #ecfdf3;
+  --semantic-success-text: #176b45;
+}
+
+@theme inline {
+  --color-blue-50: var(--blue-50);
+  --color-blue-100: var(--blue-100);
+  --color-blue-200: var(--blue-200);
+  --color-blue-300: var(--blue-300);
+  --color-blue-400: var(--blue-400);
+  --color-blue-500: var(--blue-500);
+  --color-blue-600: var(--blue-600);
+  --color-blue-700: var(--blue-700);
+  --color-blue-800: var(--blue-800);
+  --color-blue-900: var(--blue-900);
+  --color-pink-50: var(--pink-50);
+  --color-pink-100: var(--pink-100);
+  --color-pink-200: var(--pink-200);
+  --color-pink-300: var(--pink-300);
+  --color-pink-400: var(--pink-400);
+  --color-pink-500: var(--pink-500);
+  --color-pink-600: var(--pink-600);
+  --color-pink-700: var(--pink-700);
+  --color-pink-800: var(--pink-800);
+  --color-pink-900: var(--pink-900);
+  --color-surface: var(--surface);
+  --color-text-primary: var(--text-primary);
+  --color-text-on-accent: var(--text-on-accent);
+}
