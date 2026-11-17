@@ -19,6 +19,7 @@
     "test": "npm run build:test && node --test .test-dist/tests/unit/data-models.test.js .test-dist/tests/unit/auth.test.js .test-dist/tests/unit/auth-middleware.test.js .test-dist/tests/unit/openapi-contract.test.js .test-dist/tests/unit/findrisc.test.js .test-dist/tests/unit/circuit-breaker.test.js .test-dist/tests/unit/observability.test.js",
     "test:integration": "npm run build:test && node --test .test-dist/tests/integration/audit-immutability.test.js && node --test .test-dist/tests/integration/auth-sessions.test.js && node --test .test-dist/tests/integration/auth-popup.test.js && node --test .test-dist/tests/integration/patient-experience.test.js && node --test .test-dist/tests/integration/core-api-contract.test.js && node --test .test-dist/tests/integration/worker-pipeline.test.js && node --test .test-dist/tests/integration/ml-service.test.js && node --test .test-dist/tests/integration/report-cache.test.js",
     "test:e2e": "npm run build:test && node --test .test-dist/tests/api-e2e/patient-doctor-journey.test.js",
+    "smoke": "node scripts/smoke-local.mjs",
     "fe:dev": "npm run dev --workspace @carelens/frontend",
     "fe:client": "npm run client:generate --workspace @carelens/frontend",
     "fe:test": "npm test --workspace @carelens/frontend",

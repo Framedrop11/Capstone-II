@@ -1,4 +1,4 @@
-.PHONY: up down test lint verify seed e2e load fe-dev fe-client fe-test fe-lint fe-build fe-e2e fe-a11y fe-verify
+.PHONY: up down test lint verify seed smoke e2e load fe-dev fe-client fe-test fe-lint fe-build fe-e2e fe-a11y fe-verify
 
 up:
 	docker compose --env-file .env -f infra/docker/docker-compose.yml up --build -d
@@ -12,6 +12,8 @@ verify:
 	npm run verify
 seed:
 	docker compose --env-file .env -f infra/docker/docker-compose.yml exec core-api node scripts/seed-local.mjs
+smoke:
+	node scripts/smoke-local.mjs
 e2e:
 	npm run test:e2e
 load:
