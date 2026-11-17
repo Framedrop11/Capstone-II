@@ -2,7 +2,7 @@
 
 Date: 2026-11-17
 
-Status: **D0 incomplete; stop here.** The orientation plan, input ledger, ADRs, safety tag, and branch are present. Required Gitleaks history scan and logical commits are not complete. M01 was provided and configured locally; repository visibility and emptiness are not independently verified. No D1 work has started.
+Status: **D0 passed.** The plan, input ledger, ADRs, safety tag, branch, secret scan, and logical commits are complete. M01 was provided and configured locally; repository visibility and emptiness were not independently verified. No push or cloud provisioning occurred.
 
 ## Work completed
 
@@ -23,8 +23,11 @@ Status: **D0 incomplete; stop here.** The orientation plan, input ledger, ADRs, 
 - `kubectl config get-contexts` — header only; no Kubernetes context is configured.
 - `git check-ignore -v .secrets/demo.env logs/demo.log reports/demo.txt kind-export/demo.yaml kind-exports/demo.yaml .vercel/project.json` — all sample paths matched the intended ignore entries.
 - Machine inventory `Get-CimInstance Win32_ComputerSystem` — denied by the restricted host API; hardware numbers above were supplied directly by the user. Runtime OS string was `Microsoft Windows 10.0.26300`.
-- Gitleaks full-history scan — **not run**: executable unavailable and Docker daemon is not running. No full-history secret-scan result is claimed.
-- Existing work has not been committed. Without a Gitleaks scan and review of the broad pre-existing working tree, committing it would violate the prompt’s secret-safety gate. No files were reset or cleaned.
+- `gitleaks git . --log-opts="--all" --redact --no-banner` (with repository process access) — **passed**: 10 commits scanned; no leaks found. A subsequent final scan after the D0 verification commit is recorded below.
+- `gitleaks git . --staged --redact --no-banner` — no staged leaks found before the logical commits.
+- `gitleaks dir . --redact --no-banner` — found 13 matches in the current working tree: one in ignored local `.env` (`GOOGLE_CLIENT_SECRET`, value not printed) and 12 generic-api-key matches in the local `services/ml-service/.venv` dependency test sources. These paths are excluded from Git; build/test artifacts under `services/ml-service/target/` were also excluded by a new ignore rule. The local `.env` was preserved and never staged.
+- Placeholder check using `rg -n --hidden -g '!**/.git/**' -g '!**/.venv/**' -g '!**/node_modules/**' '<<MANUAL:' .` — remaining matches are the manual-input ledger and the demo plan/ADRs documenting inputs required by later stages. No placeholders were found in application source or deployment configuration. Later-stage placeholders remain intentionally documented until those inputs are collected.
+- Existing work was committed locally in logical chunks. No user files were reset or cleaned. `git status --short` is empty on `demo-rc`.
 
 ## Manual inputs
 
@@ -34,4 +37,8 @@ Status: **D0 incomplete; stop here.** The orientation plan, input ledger, ADRs, 
 
 ## Gate
 
-**Not passed.** Gitleaks and committing the existing work in logical chunks remain outstanding. Docker/Kubernetes runtime verification is unavailable until Docker Desktop’s Linux engine is running and a cluster/provider is configured. D0 has not advanced to D1.
+**Passed.** Safety tag `pre-demo-snapshot` exists, branch `demo-rc` is clean, all current work was committed locally, the full-history scan passed, and the plan/ledger/ADRs are recorded. Commits: `d1e58bb` (docs/architecture), `6f34e88` (frontend), `d9d5873` (API/ML), `96c385d` (infrastructure/CI); the final D0/D1 report update follows.
+
+## Final post-commit history scan
+
+After the report update was committed, Gitleaks scanned all refs/history again: 11 commits scanned, approximately 1.5 MB, no leaks found. Output was redacted.
