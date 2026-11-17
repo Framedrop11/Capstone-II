@@ -21,11 +21,13 @@ function objectId(value: string): Types.ObjectId {
   return new Types.ObjectId(value);
 }
 
-function serializeConsent(consent: InstanceType<typeof Consent>): Record<string, unknown> {
+function serializeConsent(consent: InstanceType<typeof Consent>, knownDoctorName?: string): Record<string, unknown> {
+  const doctor = consent.doctorId as unknown as { _id?: Types.ObjectId; name?: string };
   return {
     consentId: consent._id.toString(),
     patientId: consent.patientId.toString(),
-    doctorId: consent.doctorId.toString(),
+    doctorId: (doctor._id ?? consent.doctorId).toString(),
+    doctorName: knownDoctorName ?? doctor.name ?? 'Doctor',
     predictionId: consent.predictionId.toString(),
     scope: consent.scope,
     expiresAt: consent.expiresAt.toISOString(),
@@ -48,6 +50,60 @@ function duplicateKey(error: unknown): boolean {
 
 export function registerPatientRoutes(app: Express, dependencies: CoreApiDependencies): void {
   const auth = bearerRoute(dependencies.accessTokens, 'patient');
+
+  app.get('/api/v1/patient/doctors', ...auth, async (request, response, next) => {
+    try {
+      const query = typeof request.query['query'] === 'string' ? request.query['query'].trim().slice(0, 80) : '';
+      const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const doctors = await User.find({ role: 'doctor', ...(escaped ? { name: { $regex: escaped, $options: 'i' } } : {}) })
+        .sort({ name: 1, _id: 1 }).limit(pageLimit(request.query['limit'])).select({ name: 1 }).lean().exec();
+      response.status(200).json({ items: doctors.map((doctor) => ({ doctorId: doctor._id.toString(), name: doctor.name })) });
+    } catch (error) { next(error); }
+  });
+
+  app.get('/api/v1/patient/questionnaires/:questionnaireId', ...auth, async (request, response, next) => {
+    try {
+      const patient = await Patient.findOne({ userId: objectId(request.authPrincipal!.userId) }).exec();
+      if (!patient) throw new NotFoundError('Patient profile not found');
+      const questionnaireId = request.params['questionnaireId'];
+      if (typeof questionnaireId !== 'string' || !Types.ObjectId.isValid(questionnaireId)) throw new BadRequestError('Questionnaire identifier is invalid');
+      const questionnaire = await Questionnaire.findOne({ _id: questionnaireId, patientId: patient._id }).select({ _id: 1, submittedAt: 1 }).exec();
+      if (!questionnaire) throw new NotFoundError('Questionnaire not found');
+      const prediction = await Prediction.findOne({ questionnaireId: questionnaire._id, patientId: patient._id }).select({ _id: 1, scoreSource: 1 }).exec();
+      const queueStatus = prediction ? 'complete' : await dependencies.scoringQueue.getStatus?.(questionnaireId) ?? 'pending';
+      const status = prediction ? 'complete' : queueStatus === 'failed' || queueStatus === 'missing' ? 'failed' : 'pending';
+      response.status(200).json({ questionnaireId, status, submittedAt: questionnaire.submittedAt.toISOString(), ...(prediction ? { predictionId: prediction._id.toString(), scoreSource: prediction.scoreSource } : {}) });
+    } catch (error) { next(error); }
+  });
+
+  app.get('/api/v1/patient/notifications', ...auth, async (request, response, next) => {
+    try {
+      const userId = objectId(request.authPrincipal!.userId);
+      const limit = pageLimit(request.query['limit']);
+      const cursor = decodeCursor(typeof request.query['cursor'] === 'string' ? request.query['cursor'] : undefined);
+      const filter = { recipientId: userId, ...cursorCondition('createdAt', cursor) };
+      const [rows, unreadCount] = await Promise.all([
+        Notification.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).exec(),
+        Notification.countDocuments({ recipientId: userId, readAt: null }).exec(),
+      ]);
+      const pageRows = rows.slice(0, limit);
+      response.status(200).json({
+        items: pageRows.map((item) => ({ notificationId: item._id.toString(), kind: item.kind, createdAt: item.createdAt.toISOString(), readAt: item.readAt?.toISOString() ?? null, ...(item.kind === 'report_ready' ? { predictionId: item.payload['predictionId'] } : {}) })),
+        unreadCount,
+        nextCursor: rows.length > limit && pageRows.length ? encodeCursor(pageRows[pageRows.length - 1]!.createdAt, pageRows[pageRows.length - 1]!._id) : null,
+      });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/v1/patient/notifications/:notificationId/read', ...auth, async (request, response, next) => {
+    try {
+      const notificationId = request.params['notificationId'];
+      if (typeof notificationId !== 'string' || !Types.ObjectId.isValid(notificationId)) throw new BadRequestError('Notification identifier is invalid');
+      const item = await Notification.findOneAndUpdate({ _id: notificationId, recipientId: objectId(request.authPrincipal!.userId) }, { $set: { readAt: new Date() } }, { new: true }).exec();
+      if (!item) throw new NotFoundError('Notification not found');
+      response.status(200).json({ notificationId: item._id.toString(), readAt: item.readAt?.toISOString() ?? null });
+    } catch (error) { next(error); }
+  });
 
   app.post('/api/v1/patient/questionnaires', ...auth, async (request, response, next) => {
     try {
@@ -123,23 +179,25 @@ export function registerPatientRoutes(app: Express, dependencies: CoreApiDepende
     try {
       const patient = await Patient.findOne({ userId: objectId(request.authPrincipal!.userId) }).exec();
       if (!patient) throw new NotFoundError('Patient profile not found');
-      const prediction = await Prediction.findOne({ _id: request.params['predictionId'], patientId: patient._id }).exec();
-      if (!prediction) throw new NotFoundError('Report not found');
+      const predictionParam = request.params['predictionId'];
+      if (typeof predictionParam !== 'string') throw new BadRequestError('Prediction identifier is invalid');
+      const predictionId = predictionParam;
+      const report = await dependencies.reportCache!.getOrLoad(patient._id.toString(), predictionId, async () => {
+        const prediction = await Prediction.findOne({ _id: predictionId, patientId: patient._id }).exec();
+        if (!prediction) throw new NotFoundError('Report not found');
+        return {
+          predictionId: prediction._id.toString(), basicScore: prediction.basicScore, mlScore: prediction.mlScore,
+          scoreSource: prediction.scoreSource, riskBand: prediction.riskBand, factors: prediction.factors, modelVersion: prediction.modelVersion,
+          explanation: reportExplanation(prediction), disclaimer: screeningDisclaimer,
+        };
+      });
       await writeAudit({
         actorId: request.authPrincipal!.userId,
         patientId: patient._id,
         action: 'view_report',
-        modelVersion: prediction.modelVersion,
+        modelVersion: report.modelVersion,
       });
-      response.status(200).json({
-        predictionId: prediction._id.toString(),
-        basicScore: prediction.basicScore,
-        mlScore: prediction.mlScore,
-        scoreSource: prediction.scoreSource,
-        modelVersion: prediction.modelVersion,
-        explanation: reportExplanation(prediction),
-        disclaimer: screeningDisclaimer,
-      });
+      response.status(200).json(report);
     } catch (error) {
       next(error);
     }
@@ -151,12 +209,12 @@ export function registerPatientRoutes(app: Express, dependencies: CoreApiDepende
       if (!patient) throw new NotFoundError('Patient profile not found');
       const limit = pageLimit(request.query['limit']);
       const cursor = decodeCursor(typeof request.query['cursor'] === 'string' ? request.query['cursor'] : undefined);
-      const rows = await Consent.find({ patientId: patient._id, ...cursorCondition('createdAt', cursor) })
+      const rows = await Consent.find({ patientId: patient._id, ...cursorCondition('createdAt', cursor) }).populate('doctorId', 'name')
         .sort({ createdAt: -1, _id: -1 }).limit(limit + 1).exec();
       const hasMore = rows.length > limit;
       const pageRows = rows.slice(0, limit);
       response.status(200).json({
-        items: pageRows.map(serializeConsent),
+        items: pageRows.map((consent) => serializeConsent(consent)),
         nextCursor: hasMore && pageRows.length > 0
           ? encodeCursor(pageRows[pageRows.length - 1]!.createdAt, pageRows[pageRows.length - 1]!._id)
           : null,
@@ -193,7 +251,7 @@ export function registerPatientRoutes(app: Express, dependencies: CoreApiDepende
         payload: { predictionId: prediction._id.toString(), consentId: consent._id.toString() },
       });
       await writeAudit({ actorId: request.authPrincipal!.userId, patientId: patient._id, action: 'grant_consent' });
-      response.status(201).json(serializeConsent(consent));
+      response.status(201).json(serializeConsent(consent, doctor.name));
     } catch (error) {
       next(error);
     }
@@ -209,8 +267,9 @@ export function registerPatientRoutes(app: Express, dependencies: CoreApiDepende
         { new: true, runValidators: true },
       ).exec();
       if (!consent) throw new NotFoundError('Active consent not found');
+      const doctor = await User.findById(consent.doctorId).select({ name: 1 }).exec();
       await writeAudit({ actorId: request.authPrincipal!.userId, patientId: patient._id, action: 'revoke_consent' });
-      response.status(200).json(serializeConsent(consent));
+      response.status(200).json(serializeConsent(consent, doctor?.name));
     } catch (error) {
       next(error);
     }

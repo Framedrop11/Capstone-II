@@ -3,6 +3,7 @@ import { Redis } from 'ioredis';
 import { createAuthComponents } from './auth/runtime.js';
 import { createCoreApi } from './http/app.js';
 import { BullMqScoringQueue } from './queue/scoring-queue.js';
+import { writeLog } from '../../../packages/shared/src/index.js';
 
 const { config, authService, accessTokens, scopedReportTokens } = await createAuthComponents();
 const database = process.env['MONGODB_DATABASE'] ?? 'carelens';
@@ -24,7 +25,7 @@ const app = await createCoreApi({
   queueRedis,
   rateLimitRedis,
 });
-const server = app.listen(Number(process.env['PORT'] ?? 3000), () => process.stdout.write(`CareLens Core API listening on ${process.env['PORT'] ?? 3000}\n`));
+const server = app.listen(Number(process.env['PORT'] ?? 3000), () => writeLog('info', 'core_api_ready', { service: 'carelens-core-api', port: Number(process.env['PORT'] ?? 3000) }));
 
 async function shutdown(): Promise<void> {
   server.close();

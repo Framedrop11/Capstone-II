@@ -51,6 +51,7 @@ const predictionSchema = new Schema({
   basicScore: { type: Number, required: true, min: 0, max: 1 },
   mlScore: { type: Number, default: null, min: 0, max: 1 },
   scoreSource: { type: String, required: true, enum: ['basic_only', 'ml_refined'] },
+  riskBand: { type: String, required: true, enum: ['low', 'slightly_elevated', 'moderate', 'high', 'very_high'], default: 'low' },
   modelVersion: { type: String, required: true, trim: true, maxlength: 100 },
   factors: { type: [String], default: [] },
   predictionTimestamp: { type: Date, required: true, default: Date.now },

@@ -1,0 +1,9 @@
+# ML training dataset
+
+Stage 5 uses UCI Machine Learning Repository dataset 529, “Early Stage Diabetes Risk Prediction.” It contains 520 questionnaire records from a Bangladesh diabetes hospital and is available under CC BY 4.0. The selected public fields are Age, Gender, Obesity, and Class. The training pipeline uses only age, sex, and obesity; it excludes the symptom answers. The source dataset and license are documented at <https://archive.ics.uci.edu/dataset/0529/diabetes>.
+
+The API receives the complete Stage 4 FINDRISC response for contract consistency. At inference it derives an obesity flag from BMI >= 30, then predicts from age, sex, and that flag. It does not use the remaining questionnaire answers or `basicScore` as model features. The training split is fixed at 80/20 with stratification and seed 2026. Model preprocessing and logistic regression are serialized together in the versioned artifact.
+
+This dataset is small, geographically and clinically specific, and does not measure the same outcome or time horizon as FINDRISC. Its classifier score is an exploratory demonstration only. It is not a calibrated 10-year risk, not clinically validated, and must not guide diagnosis or treatment. A future clinically meaningful model requires an approved dataset aligned to the intended population, outcome, and evaluation protocol.
+
+The doctor-outcome retraining command accepts only the exact labels `positive` and `negative`; other free-text outcomes and malformed questionnaire feature rows are excluded. It trains from doctor-confirmed records and evaluates both candidate and stable artifacts on the same seed-2026 stratified holdout from this UCI benchmark. This creates a comparable engineering gate, but the benchmark and outcome semantics still need clinical review before any real-world use.

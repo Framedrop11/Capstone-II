@@ -4,18 +4,26 @@ import {
   buildAuthorizationUrl,
   discovery,
   type Configuration,
-} from 'openid-client';
-import type { AuthorizationTransaction, OidcIdentity, OidcProvider } from './types.js';
+} from "openid-client";
+import type {
+  AuthorizationTransaction,
+  OidcIdentity,
+  OidcProvider,
+} from "./types.js";
 
 export class GoogleOidcProvider implements OidcProvider {
-  readonly kind = 'google' as const;
+  readonly kind = "google" as const;
 
   private constructor(private readonly configuration: Configuration) {}
 
-  static async create(clientId: string, clientSecret: string): Promise<GoogleOidcProvider> {
-    if (!clientId || !clientSecret) throw new Error('Google OIDC client ID and secret are required');
+  static async create(
+    clientId: string,
+    clientSecret: string,
+  ): Promise<GoogleOidcProvider> {
+    if (!clientId || !clientSecret)
+      throw new Error("Google OIDC client ID and secret are required");
     const configuration = await discovery(
-      new URL('https://accounts.google.com'),
+      new URL("https://accounts.google.com"),
       clientId,
       { client_secret: clientSecret },
       ClientSecretPost(clientSecret),
@@ -23,66 +31,112 @@ export class GoogleOidcProvider implements OidcProvider {
     return new GoogleOidcProvider(configuration);
   }
 
-  async authorizationUrl(transaction: AuthorizationTransaction, redirectUri: string): Promise<string> {
+  async authorizationUrl(
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<string> {
     return buildAuthorizationUrl(this.configuration, {
       redirect_uri: redirectUri,
-      response_type: 'code',
-      scope: 'openid email profile',
-      prompt: 'select_account',
+      response_type: "code",
+      scope: "openid email profile",
+      prompt: "select_account",
       state: transaction.state,
       nonce: transaction.nonce,
       code_challenge: transaction.codeChallenge,
-      code_challenge_method: 'S256',
+      code_challenge_method: "S256",
     }).toString();
   }
 
-  async completeAuthorization(callbackUrl: string, transaction: AuthorizationTransaction, redirectUri: string): Promise<OidcIdentity> {
+  async completeAuthorization(
+    callbackUrl: string,
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<OidcIdentity> {
     const responseUrl = new URL(callbackUrl);
     if (responseUrl.origin + responseUrl.pathname !== redirectUri) {
-      throw new Error('OIDC callback URL does not match the configured redirect URI');
+      throw new Error(
+        "OIDC callback URL does not match the configured redirect URI",
+      );
     }
-    const tokens = await authorizationCodeGrant(this.configuration, responseUrl, {
-      expectedState: transaction.state,
-      expectedNonce: transaction.nonce,
-      pkceCodeVerifier: transaction.codeVerifier,
-      idTokenExpected: true,
-    });
+    const tokens = await authorizationCodeGrant(
+      this.configuration,
+      responseUrl,
+      {
+        expectedState: transaction.state,
+        expectedNonce: transaction.nonce,
+        pkceCodeVerifier: transaction.codeVerifier,
+        idTokenExpected: true,
+      },
+    );
     const claims = tokens.claims();
-    const subject = claims?.['sub'];
-    const email = claims?.['email'];
-    const emailVerified = claims?.['email_verified'];
-    const name = claims?.['name'];
-    if (typeof subject !== 'string' || typeof email !== 'string' || emailVerified !== true) {
-      throw new Error('Google identity token is missing a verified subject or email');
+    const subject = claims?.["sub"];
+    const email = claims?.["email"];
+    const emailVerified = claims?.["email_verified"];
+    const name = claims?.["name"];
+    if (
+      typeof subject !== "string" ||
+      typeof email !== "string" ||
+      emailVerified !== true
+    ) {
+      throw new Error(
+        "Google identity token is missing a verified subject or email",
+      );
     }
-    return { subject, email, emailVerified: true, name: typeof name === 'string' ? name : email };
+    return {
+      subject,
+      email,
+      emailVerified: true,
+      name: typeof name === "string" ? name : email,
+    };
   }
 }
 
 export class MockOidcProvider implements OidcProvider {
-  readonly kind = 'mock' as const;
+  readonly kind = "mock" as const;
 
-  constructor(private readonly identity: OidcIdentity) {}
+  private readonly identities: Record<
+    "patient" | "doctor" | "admin",
+    OidcIdentity
+  >;
 
-  async authorizationUrl(transaction: AuthorizationTransaction, redirectUri: string): Promise<string> {
-    const url = new URL('http://mock-oidc.local/authorize');
-    url.searchParams.set('client_id', 'carelens-test-client');
-    url.searchParams.set('redirect_uri', redirectUri);
-    url.searchParams.set('response_type', 'code');
-    url.searchParams.set('scope', 'openid email profile');
-    url.searchParams.set('state', transaction.state);
-    url.searchParams.set('nonce', transaction.nonce);
-    url.searchParams.set('code_challenge', transaction.codeChallenge);
-    url.searchParams.set('code_challenge_method', 'S256');
+  constructor(
+    identities:
+      Record<"patient" | "doctor" | "admin", OidcIdentity> | OidcIdentity,
+  ) {
+    this.identities =
+      "patient" in identities
+        ? identities
+        : {
+            patient: identities,
+            doctor: identities,
+            admin: identities,
+          };
+  }
+
+  async authorizationUrl(
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<string> {
+    const url = new URL(redirectUri);
+    url.searchParams.set("code", "mock-valid-code");
+    url.searchParams.set("state", transaction.state);
     return url.toString();
   }
 
-  async completeAuthorization(callbackUrl: string, transaction: AuthorizationTransaction, redirectUri: string): Promise<OidcIdentity> {
+  async completeAuthorization(
+    callbackUrl: string,
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<OidcIdentity> {
     const response = new URL(callbackUrl);
-    if (`${response.origin}${response.pathname}` !== redirectUri || response.searchParams.get('state') !== transaction.state) {
-      throw new Error('Mock OIDC state or callback URI did not match');
+    if (
+      `${response.origin}${response.pathname}` !== redirectUri ||
+      response.searchParams.get("state") !== transaction.state
+    ) {
+      throw new Error("Mock OIDC state or callback URI did not match");
     }
-    if (response.searchParams.get('code') !== 'mock-valid-code') throw new Error('Mock OIDC authorization code is invalid');
-    return this.identity;
+    if (response.searchParams.get("code") !== "mock-valid-code")
+      throw new Error("Mock OIDC authorization code is invalid");
+    return this.identities[transaction.mockRole ?? "patient"];
   }
 }

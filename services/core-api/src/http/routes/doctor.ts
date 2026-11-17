@@ -34,12 +34,21 @@ export function registerDoctorRoutes(app: Express, dependencies: CoreApiDependen
       }).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).exec();
       const hasMore = rows.length > limit;
       const pageRows = rows.slice(0, limit);
-      response.status(200).json({
-        items: pageRows.map((consent) => ({
+      const items = await Promise.all(pageRows.map(async (consent) => {
+        const item: { patientId: string; predictionId: string; consentExpiresAt: string; sharedAt: string; riskBand?: string } = {
           patientId: consent.patientId.toString(),
           predictionId: consent.predictionId.toString(),
           consentExpiresAt: consent.expiresAt.toISOString(),
-        })),
+          sharedAt: consent.createdAt.toISOString(),
+        };
+        if (parseConsentScope(consent.scope).has('riskBand')) {
+          const prediction = await Prediction.findOne({ _id: consent.predictionId, patientId: consent.patientId }).select({ riskBand: 1 }).exec();
+          if (prediction) item.riskBand = prediction.riskBand;
+        }
+        return item;
+      }));
+      response.status(200).json({
+        items,
         nextCursor: hasMore && pageRows.length > 0
           ? encodeCursor(pageRows[pageRows.length - 1]!.createdAt, pageRows[pageRows.length - 1]!._id)
           : null,
@@ -86,20 +95,29 @@ export function registerDoctorRoutes(app: Express, dependencies: CoreApiDependen
         expiresAt: { $gt: now },
       }).sort({ expiresAt: -1 }).exec();
       if (!consent) throw new ConflictError('Report consent is no longer active');
-      const prediction = await Prediction.findOne({ _id: scoped.predictionId, patientId: scoped.patientId }).exec();
-      if (!prediction) throw new NotFoundError('Report not found');
+      const reportData = await dependencies.reportCache!.getOrLoad(scoped.patientId, scoped.predictionId, async () => {
+        const prediction = await Prediction.findOne({ _id: scoped.predictionId, patientId: scoped.patientId }).exec();
+        if (!prediction) throw new NotFoundError('Report not found');
+        return {
+          predictionId: prediction._id.toString(), basicScore: prediction.basicScore, mlScore: prediction.mlScore,
+          scoreSource: prediction.scoreSource, riskBand: prediction.riskBand, factors: prediction.factors, modelVersion: prediction.modelVersion,
+          explanation: reportExplanation(prediction), disclaimer: screeningDisclaimer,
+        };
+      });
       const allowed = parseConsentScope(consent.scope);
-      const report: Record<string, unknown> = { predictionId: prediction._id.toString(), disclaimer: screeningDisclaimer };
-      if (allowed.has('basicScore')) report['basicScore'] = prediction.basicScore;
-      if (allowed.has('mlScore')) report['mlScore'] = prediction.mlScore;
-      if (allowed.has('scoreSource')) report['scoreSource'] = prediction.scoreSource;
-      if (allowed.has('modelVersion')) report['modelVersion'] = prediction.modelVersion;
-      if (allowed.has('explanation')) report['explanation'] = reportExplanation(prediction);
+      const report: Record<string, unknown> = { predictionId: reportData.predictionId, disclaimer: reportData.disclaimer };
+      if (allowed.has('basicScore')) report['basicScore'] = reportData.basicScore;
+      if (allowed.has('mlScore')) report['mlScore'] = reportData.mlScore;
+      if (allowed.has('scoreSource')) report['scoreSource'] = reportData.scoreSource;
+      if (allowed.has('riskBand')) report['riskBand'] = reportData.riskBand;
+      if (allowed.has('factors')) report['factors'] = reportData.factors;
+      if (allowed.has('modelVersion')) report['modelVersion'] = reportData.modelVersion;
+      if (allowed.has('explanation')) report['explanation'] = reportData.explanation;
       await writeAudit({
         actorId: scoped.doctorId,
         patientId: scoped.patientId,
         action: 'view_report',
-        modelVersion: prediction.modelVersion,
+        modelVersion: reportData.modelVersion,
       });
       response.status(200).json(report);
     } catch (error) {

@@ -9,6 +9,7 @@ export interface ScoringJob {
 
 export interface ScoringQueue {
   enqueue(job: ScoringJob): Promise<void>;
+  getStatus?(questionnaireId: string): Promise<'pending' | 'complete' | 'failed' | 'missing'>;
   isReady(): Promise<boolean>;
   close(): Promise<void>;
 }
@@ -30,6 +31,15 @@ export class BullMqScoringQueue implements ScoringQueue {
 
   async enqueue(job: ScoringJob): Promise<void> {
     await this.queue.add('score-questionnaire', job, { jobId: job.questionnaireId });
+  }
+
+  async getStatus(questionnaireId: string): Promise<'pending' | 'complete' | 'failed' | 'missing'> {
+    const job = await this.queue.getJob(questionnaireId);
+    if (!job) return 'missing';
+    const state = await job.getState();
+    if (state === 'completed') return 'complete';
+    if (state === 'failed') return 'failed';
+    return 'pending';
   }
 
   async isReady(): Promise<boolean> {

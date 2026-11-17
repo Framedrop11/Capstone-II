@@ -1,6 +1,6 @@
 import { BadRequestError } from './errors.js';
 
-const reportFields = new Set(['basicScore', 'mlScore', 'scoreSource', 'modelVersion', 'explanation']);
+const reportFields = new Set(['basicScore', 'mlScore', 'scoreSource', 'riskBand', 'factors', 'modelVersion', 'explanation']);
 
 export function parseConsentScope(scope: string): Set<string> {
   if (scope === 'full_report') return new Set(reportFields);

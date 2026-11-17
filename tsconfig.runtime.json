@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist/core-api",
+    "declaration": false,
+    "sourceMap": false
+  },
+  "include": ["packages/shared/src/**/*.ts", "services/core-api/src/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".test-dist"]
+}

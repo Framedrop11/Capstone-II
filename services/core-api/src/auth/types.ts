@@ -1,5 +1,5 @@
-export type CareLensRole = 'patient' | 'doctor' | 'admin';
-export type AuthEnvironment = 'local' | 'dev' | 'test' | 'staging' | 'prod';
+export type CareLensRole = "patient" | "doctor" | "admin";
+export type AuthEnvironment = "local" | "dev" | "test" | "staging" | "prod";
 
 export interface OidcIdentity {
   subject: string;
@@ -14,12 +14,21 @@ export interface AuthorizationTransaction {
   codeVerifier: string;
   codeChallenge: string;
   issuedAt: number;
+  responseMode?: "json" | "popup";
+  mockRole?: CareLensRole;
 }
 
 export interface OidcProvider {
-  readonly kind: 'google' | 'mock';
-  authorizationUrl(transaction: AuthorizationTransaction, redirectUri: string): Promise<string>;
-  completeAuthorization(callbackUrl: string, transaction: AuthorizationTransaction, redirectUri: string): Promise<OidcIdentity>;
+  readonly kind: "google" | "mock";
+  authorizationUrl(
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<string>;
+  completeAuthorization(
+    callbackUrl: string,
+    transaction: AuthorizationTransaction,
+    redirectUri: string,
+  ): Promise<OidcIdentity>;
 }
 
 export interface Principal {

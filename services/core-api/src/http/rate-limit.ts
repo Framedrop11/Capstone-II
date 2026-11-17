@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { RequestHandler } from 'express';
 import type { Redis } from 'ioredis';
+import { recordRateLimitOutcome } from './metrics.js';
 
 const incrementScript = `
 local count = redis.call('INCR', KEYS[1])
@@ -25,12 +26,15 @@ export function createRedisRateLimiter(redis: Redis, options: RateLimitOptions =
       response.setHeader('RateLimit-Limit', options.maximum);
       response.setHeader('RateLimit-Remaining', Math.max(0, options.maximum - count));
       if (count > options.maximum) {
+        recordRateLimitOutcome('blocked');
         response.status(429).json({ error: 'Rate limit exceeded', requestId: request.correlationId ?? 'unknown' });
         return;
       }
+      recordRateLimitOutcome('allowed');
       next();
     } catch {
       // Rate limiting is best-effort during cache Redis failure; the request can still use the API.
+      recordRateLimitOutcome('fail_open');
       next();
     }
   };

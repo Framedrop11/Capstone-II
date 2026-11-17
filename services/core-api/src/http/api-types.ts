@@ -4,6 +4,7 @@ import type { AccessTokenService } from '../auth/access-tokens.js';
 import type { ScopedReportTokenService } from '../auth/scoped-report-tokens.js';
 import type { ScoringQueue } from '../queue/scoring-queue.js';
 import type { AuthEnvironment } from '../auth/types.js';
+import type { ReportReadCache } from '../cache/report-cache.js';
 
 export interface CoreApiDependencies {
   environment: AuthEnvironment;
@@ -14,5 +15,6 @@ export interface CoreApiDependencies {
   scoringQueue: ScoringQueue;
   queueRedis: Redis;
   rateLimitRedis: Redis;
+  reportCache?: ReportReadCache;
   maximumRequestBytes?: number;
 }

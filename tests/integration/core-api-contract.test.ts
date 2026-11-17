@@ -18,6 +18,10 @@ test('Core API loads and applies the OpenAPI validator to operational and versio
   assert.equal(health.status, 200);
   assert.equal(health.body.status, 'ok');
   assert.ok(health.headers['x-correlation-id']);
+  const metrics = await request(app).get('/metrics');
+  assert.equal(metrics.status, 200);
+  assert.match(metrics.text, /carelens_http_requests_total/);
+  assert.match(metrics.text, /carelens_cache_operations_total/);
   const unauthenticated = await request(app).get('/api/v1/patient/predictions');
   assert.equal(unauthenticated.status, 401, JSON.stringify(unauthenticated.body));
   const invalid = await request(app).post('/api/v1/patient/questionnaires').send({ responses: [] });

@@ -1,0 +1,25 @@
+{
+  "artifactSha256": "8863608fcc534877f35ec0658315824fa69606a4b82310f72ce9e8a08eb53101",
+  "metrics": {
+    "auc": 0.82421875,
+    "brier": 0.16203471971853478,
+    "precision": 0.7580645161290323,
+    "recall": 0.734375
+  },
+  "trainingInfo": {
+    "candidateC": 1.0,
+    "datasetRows": 520,
+    "datasetSha256": "18d42ae1b7e04bc2ca2398fd1f95f3df2c6332b97155f70b215aa0af4b9d32c9",
+    "estimator": "StandardScaler + one-hot encoder + logistic regression",
+    "features": [
+      "ageYears",
+      "obesity",
+      "sex"
+    ],
+    "holdoutRows": 104,
+    "randomSeed": 2026,
+    "testFraction": 0.2,
+    "trainRows": 416
+  },
+  "version": "carelens-logreg-v1"
+}
