@@ -4,7 +4,7 @@ Date: 2026-11-12
 
 ## Built
 
-- Added an OpenAPI 3.1 contract and Express OpenAPI request/response validation; Swagger UI is enabled only in `dev` and `staging`.
+- Added an OpenAPI 3.1 contract and Express OpenAPI request/response validation; Swagger UI is exposed at `/docs` and `/api/docs` in `local`, `dev`, and `staging`, and remains disabled in `prod`. Swagger UI shows bearer authorization for protected operations and does not persist authorization between reloads.
 - Wired auth, patient questionnaire/prediction/report/consent/audit routes, doctor shared-report and outcome routes, and admin user/audit/model-version routes.
 - Added Redis-backed rate limiting, request correlation IDs, request size limits, sanitized error envelopes, scoped report JWTs, BullMQ questionnaire enqueueing, Prometheus HTTP metrics, liveness/readiness routes, and a runnable server entry point.
 - Added OpenAPI contract tests and an HTTP smoke integration test covering validator startup, liveness/correlation behavior, authentication failures and request validation.

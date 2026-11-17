@@ -12,3 +12,4 @@ The implementation decisions below are defined by the master prompt. Update the 
 8. Clarify the separate BullMQ Redis and cache Redis instances, their memory policies and purpose-specific availability behavior.
 9. Define the supported condition and source for the rule-based screening method. The demonstration selected FINDRISC for adult Type 2 diabetes only (ADR-0011); clarify applicability, the questionnaire fields, and that normalized points are not a probability.
 10. Reconcile any SRS/SDD requirement for a React GUI with the master prompt's explicit API-only current scope and deferred frontend.
+11. Specify the intended ML outcome, target population, and approved training dataset. The Stage 5 UCI dataset is only an exploratory demonstration and its score is not aligned to FINDRISC's 10-year risk (ADR-0012).
