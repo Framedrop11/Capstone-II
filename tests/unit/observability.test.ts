@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { parse } from 'yaml';
+import { parse, parseAllDocuments } from 'yaml';
 import { mlBreakerState, mlRequestDuration, mlRequests, predictionScores, renderWorkerMetrics, scoringFallbacks, startWorkerMetricsServer, workerJobDuration, workerJobs, workerQueueDepth } from '../../services/worker/src/observability.js';
 
 test('worker exports queue, scoring, fallback, ML latency and circuit metrics', async () => {
@@ -39,13 +39,27 @@ test('worker metrics server exposes the Prometheus scrape endpoint', async () =>
 test('Prometheus alerts, targets and Grafana dashboard files are parseable and include required panels', async () => {
   const root = process.cwd();
   const alerts = parse(await readFile(resolve(root, 'infra/monitoring/alerts.yml'), 'utf8')) as { groups: Array<{ rules: Array<{ alert: string; expr: string }> }> };
-  const config = parse(await readFile(resolve(root, 'infra/monitoring/prometheus.yml'), 'utf8')) as { scrape_configs: Array<{ job_name: string }> };
+  const config = parse(await readFile(resolve(root, 'infra/monitoring/prometheus.yml'), 'utf8')) as { scrape_configs: Array<{ job_name: string }>; alerting?: { alertmanagers?: unknown[] } };
+  const alertmanager = parse(await readFile(resolve(root, 'infra/monitoring/alertmanager.yml'), 'utf8')) as { receivers: Array<{ name: string; email_configs?: Array<{ to: string; send_resolved: boolean }> }> };
+  const demoHpas = parseAllDocuments(await readFile(resolve(root, 'infra/k8s/overlays/staging/autoscaling-demo-patch.yaml'), 'utf8'))
+    .map((document) => document.toJSON()) as Array<{
+      kind: string;
+      metadata: { name: string };
+      spec: {
+        maxReplicas: number;
+        metrics: Array<{ resource: { target: { averageUtilization: number } } }>;
+      };
+    }>;
   const dashboard = JSON.parse(await readFile(resolve(root, 'infra/monitoring/grafana/carelens-overview.json'), 'utf8')) as { panels: Array<{ title: string }> };
   const ruleNames = alerts.groups.flatMap((group) => group.rules.map((rule) => rule.alert));
   assert.ok(ruleNames.includes('CareLensScoreDistributionDrift'));
   assert.ok(ruleNames.includes('CareLensScoringFallbackRateHigh'));
   assert.ok(ruleNames.every((name) => name.length > 0));
   assert.deepEqual(config.scrape_configs.map((job) => job.job_name).sort(), ['carelens-core-api', 'carelens-ml-service', 'carelens-worker']);
+  assert.ok(config.alerting?.alertmanagers?.length, 'Prometheus routes alerts to Alertmanager');
+  assert.ok(alertmanager.receivers.some((receiver) => receiver.name === 'carelens-local-mail' && receiver.email_configs?.some((email) => email.to === 'carelens-alerts@carelens.local' && email.send_resolved)));
+  assert.deepEqual(demoHpas.map((hpa) => hpa.metadata.name).sort(), ['core-api', 'worker']);
+  assert.ok(demoHpas.every((hpa) => hpa.kind === 'HorizontalPodAutoscaler' && hpa.spec.maxReplicas >= 4 && hpa.spec.metrics[0]!.resource.target.averageUtilization < 70));
   assert.ok(dashboard.panels.some((panel) => panel.title.includes('Cache')));
   assert.ok(dashboard.panels.some((panel) => panel.title.includes('circuit')));
 });

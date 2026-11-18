@@ -35,6 +35,7 @@ test('API journey: patient scores and shares a report, doctor access is audited 
     accessTokens, refreshSessions: new RefreshSessionService(3600),
   });
   const queued: ScoringJob[] = [];
+  const emailRecipients: string[] = [];
   let app;
   try {
     await mongoose.connect(mongoUrl.toString(), { dbName, autoIndex: false });
@@ -43,6 +44,7 @@ test('API journey: patient scores and shares a report, doctor access is audited 
       environment: 'test', oidcRedirectUri: 'http://localhost:3000/api/v1/auth/callback', authService, accessTokens, scopedReportTokens: scopedTokens,
       scoringQueue: { isReady: async () => true, enqueue: async (job: ScoringJob) => { queued.push(job); }, close: async () => {} },
       queueRedis: redis, rateLimitRedis: redis,
+      emailNotifications: { reportShared: async (recipient: string) => { emailRecipients.push(recipient); }, close: () => {} },
     } as unknown as CoreApiDependencies);
 
     const start = await request(app).get('/api/v1/auth/login').expect(302);
@@ -67,6 +69,7 @@ test('API journey: patient scores and shares a report, doctor access is audited 
     assert.ok(prediction.predictionId);
     assert.equal(prediction.scoreSource, 'basic_only');
     const report = await request(app).get(`/api/v1/patient/reports/${prediction.predictionId}`).set('Authorization', `Bearer ${patientToken}`).expect(200);
+    assert.equal(report.headers['cache-control'], 'no-store');
     assert.match(report.body.disclaimer, /screening aid, not a diagnosis/i);
 
     const doctor = await User.create({ name: 'Dr. Mehta', email: 'doctor.e2e@example.test', authProvider: 'e2e:doctor', role: 'doctor' });
@@ -76,6 +79,13 @@ test('API journey: patient scores and shares a report, doctor access is audited 
       expiresAt: new Date(Date.now() + 60_000).toISOString(),
     }).expect(201);
     assert.equal(await Notification.countDocuments({ recipientId: doctor._id, kind: 'report_shared' }), 1);
+    assert.deepEqual(emailRecipients, [doctor.email]);
+    const notifications = await request(app).get('/api/v1/doctor/notifications').set('Authorization', `Bearer ${doctorToken}`).expect(200);
+    assert.equal(notifications.headers['cache-control'], 'no-store');
+    assert.equal(notifications.body.unreadCount, 1);
+    assert.equal(notifications.body.items[0].accessStatus, 'active');
+    assert.equal(notifications.body.items[0].predictionId, prediction.predictionId);
+    await request(app).post(`/api/v1/doctor/notifications/${notifications.body.items[0].notificationId}/read`).set('Authorization', `Bearer ${doctorToken}`).expect(200);
     const worklist = await request(app).get('/api/v1/doctor/shared-patients').set('Authorization', `Bearer ${doctorToken}`).expect(200);
     assert.equal(worklist.body.items[0].predictionId, prediction.predictionId);
     assert.equal(worklist.body.items[0].riskBand, 'low');
@@ -87,6 +97,9 @@ test('API journey: patient scores and shares a report, doctor access is audited 
     await request(app).post('/api/v1/doctor/outcomes').set('Authorization', `Bearer ${doctorToken}`).send({ predictionId: prediction.predictionId, actualOutcome: 'negative' }).expect(201);
 
     await request(app).post(`/api/v1/patient/consents/${consent.body.consentId}/revoke`).set('Authorization', `Bearer ${patientToken}`).expect(200);
+    const revokedNotifications = await request(app).get('/api/v1/doctor/notifications').set('Authorization', `Bearer ${doctorToken}`).expect(200);
+    assert.equal(revokedNotifications.body.items[0].accessStatus, 'revoked');
+    assert.equal('predictionId' in revokedNotifications.body.items[0], false);
     await request(app).get(`/api/v1/doctor/reports/${prediction.predictionId}`).set('Authorization', `Bearer ${access.body.accessToken}`).expect(409);
     const admin = await User.create({ name: 'Admin', email: 'admin.e2e@example.test', authProvider: 'e2e:admin', role: 'admin' });
     const adminToken = await accessTokens.issue(admin._id.toString(), 'admin');

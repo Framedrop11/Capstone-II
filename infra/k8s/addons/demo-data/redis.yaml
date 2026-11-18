@@ -1,0 +1,194 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: queue-redis
+  labels:
+    app.kubernetes.io/name: queue-redis
+    app.kubernetes.io/part-of: carelens
+spec:
+  selector:
+    app.kubernetes.io/name: queue-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: queue-redis
+  labels:
+    app.kubernetes.io/name: queue-redis
+    app.kubernetes.io/part-of: carelens
+spec:
+  serviceName: queue-redis
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: queue-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: queue-redis
+        app.kubernetes.io/part-of: carelens
+        carelens.io/role: queue-redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        fsGroup: 999
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7.4.2-alpine
+          imagePullPolicy: IfNotPresent
+          command: [sh, -ec]
+          args:
+            - exec redis-server --bind 0.0.0.0 --port 6379 --dir /data --appendonly yes --requirepass "$REDIS_PASSWORD" --maxmemory 256mb --maxmemory-policy noeviction
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: QUEUE_REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+          startupProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 4Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cache-redis
+  labels:
+    app.kubernetes.io/name: cache-redis
+    app.kubernetes.io/part-of: carelens
+spec:
+  selector:
+    app.kubernetes.io/name: cache-redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cache-redis
+  labels:
+    app.kubernetes.io/name: cache-redis
+    app.kubernetes.io/part-of: carelens
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cache-redis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: cache-redis
+        app.kubernetes.io/part-of: carelens
+        carelens.io/role: cache-redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7.4.2-alpine
+          imagePullPolicy: IfNotPresent
+          command: [sh, -ec]
+          args:
+            - exec redis-server --bind 0.0.0.0 --port 6379 --save '' --appendonly no --requirepass "$REDIS_PASSWORD" --maxmemory 128mb --maxmemory-policy allkeys-lru
+          env:
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: CACHE_REDIS_PASSWORD
+          ports:
+            - name: redis
+              containerPort: 6379
+          startupProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 5
+            failureThreshold: 24
+          livenessProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: [sh, -ec, 'REDISCLI_AUTH="$REDIS_PASSWORD" redis-cli ping | grep -q PONG']
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            medium: Memory
+            sizeLimit: 16Mi

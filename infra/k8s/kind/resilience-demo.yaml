@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resilience-demo
+  namespace: default
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: resilience-demo
+  template:
+    metadata:
+      labels:
+        app: resilience-demo
+    spec:
+      terminationGracePeriodSeconds: 1
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 15
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: 15
+      containers:
+        - name: web
+          image: nginx:1.27.5-alpine
+          ports:
+            - name: http
+              containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 2
+            periodSeconds: 2
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: resilience-demo
+  namespace: default
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: resilience-demo

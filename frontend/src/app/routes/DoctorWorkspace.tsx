@@ -34,6 +34,11 @@ export function DoctorWorkspace() {
     queryFn: api.worklist,
     refetchInterval: 30_000,
   });
+  const notifications = useQuery({
+    queryKey: ['doctor', 'notifications'],
+    queryFn: api.notifications,
+    refetchInterval: 15_000,
+  });
   const [active, setActive] = useState<ActiveReport | null>(null);
   const [loadingId, setLoadingId] = useState('');
   const [ended, setEnded] = useState(false);
@@ -173,6 +178,33 @@ export function DoctorWorkspace() {
       </header>
       <div className="cl-doctor-layout">
         <section aria-label="Shared patient worklist" className="cl-doctor-list">
+          <Card>
+            <h2>Notifications{notifications.data?.unreadCount ? ` (${notifications.data.unreadCount} new)` : ''}</h2>
+            {notifications.isLoading ? <p role="status">Loading notifications…</p> : notifications.isError ? (
+              <div role="alert"><p>We could not load notifications.</p><Button variant="secondary" onClick={() => void notifications.refetch()}>Try again</Button></div>
+            ) : notifications.data?.items.length ? (
+              <ul className="cl-doctor-notifications">
+                {notifications.data.items.map((item) => (
+                  <li key={item.notificationId}>
+                    <span>
+                      {item.accessStatus === 'active' ? 'A patient shared a report with you.' : item.accessStatus === 'revoked' ? 'A patient ended access to a shared report.' : 'A shared report link has expired.'}
+                      {!item.readAt && <strong> New</strong>}
+                    </span>
+                    <small>{new Date(item.createdAt).toLocaleString()}</small>
+                    {item.accessStatus === 'active' && item.predictionId && (
+                      <Button variant="secondary" disabled={loadingId === item.predictionId} onClick={() => {
+                        void api.markNotificationRead(item.notificationId)
+                          .then(() => notifications.refetch())
+                          .catch(() => setMessage('The report opened, but the notification could not be marked as read.'));
+                        const shared = worklist.data?.items.find((candidate) => candidate.predictionId === item.predictionId);
+                        if (shared) void openReport(shared);
+                      }}>Open shared report</Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            ) : <p>No report notifications yet.</p>}
+          </Card>
           <Card>
             <h2>Worklist</h2>
             <label className="cl-field">

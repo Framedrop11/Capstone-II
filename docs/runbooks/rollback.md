@@ -11,4 +11,4 @@ For local development, `docker compose -f infra/docker/docker-compose.yml down` 
 
 ## Kubernetes
 
-Render the target overlay and redeploy the previous immutable image digests. Apply the namespace, ConfigMap, service account, and migration Job first, wait for migration completion, then apply the full overlay. Check rollout status for `core-api`, `worker`, and `ml-service`, then verify API readiness and Prometheus targets. Keep MongoDB data and the model-artifacts PVC. Keep schema migrations forward-only during an application rollback.
+Render the target overlay and redeploy the previous immutable image digests. Apply the namespace, ConfigMap, service account, and migration Job first, wait for migration completion, then apply the full overlay. Check rollout status for `core-api`, `worker`, and `ml-service`, then verify API readiness and Prometheus targets. Keep MongoDB data and restore the prior immutable ML image digest, which contains its model artifacts. Keep schema migrations forward-only during an application rollback.

@@ -5,6 +5,7 @@ import type { ScopedReportTokenService } from '../auth/scoped-report-tokens.js';
 import type { ScoringQueue } from '../queue/scoring-queue.js';
 import type { AuthEnvironment } from '../auth/types.js';
 import type { ReportReadCache } from '../cache/report-cache.js';
+import type { EmailNotificationAdapter } from '../notifications/email-adapter.js';
 
 export interface CoreApiDependencies {
   environment: AuthEnvironment;
@@ -16,5 +17,7 @@ export interface CoreApiDependencies {
   queueRedis: Redis;
   rateLimitRedis: Redis;
   reportCache?: ReportReadCache;
+  emailNotifications?: EmailNotificationAdapter;
+  mlServiceUrl?: string;
   maximumRequestBytes?: number;
 }

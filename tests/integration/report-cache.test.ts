@@ -29,6 +29,23 @@ test('report cache single-flights reads, invalidates on write and fails open on 
     release({ basicScore: 0.4 });
     assert.deepEqual(await Promise.all([first, second]), [{ basicScore: 0.4 }, { basicScore: 0.4 }]);
     assert.equal(reads, 1);
+    const otherInstance = new ReportReadCache(client, { ttlSeconds: 30, jitterSeconds: 0, lockWaitMilliseconds: 1_000 });
+    let crossInstanceReads = 0;
+    const [crossInstanceA, crossInstanceB] = await Promise.all([
+      cache.getOrLoadKey('carelens:distributed-singleflight:test', async () => {
+        crossInstanceReads += 1;
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        return { value: 'shared' };
+      }, 30),
+      otherInstance.getOrLoadKey('carelens:distributed-singleflight:test', async () => {
+        crossInstanceReads += 1;
+        await new Promise((resolve) => setTimeout(resolve, 120));
+        return { value: 'shared' };
+      }, 30),
+    ]);
+    assert.deepEqual(crossInstanceA, { value: 'shared' });
+    assert.deepEqual(crossInstanceB, { value: 'shared' });
+    assert.equal(crossInstanceReads, 1, 'separate API instances use a Redis lock to coalesce cache misses');
     assert.deepEqual(await cache.getOrLoad('patient-a', 'prediction-a', async () => ({ basicScore: 1 })), { basicScore: 0.4 });
     await cache.invalidate('patient-a', 'prediction-a');
     assert.deepEqual(await cache.getOrLoad('patient-a', 'prediction-a', async () => ({ basicScore: 0.7 })), { basicScore: 0.7 });

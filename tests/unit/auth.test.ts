@@ -146,6 +146,14 @@ test("startup config validates secrets and refuses mock authentication in produc
     OIDC_TRANSACTION_KEY: "local-oidc-cookie-secret-at-least-32-bytes",
   };
   assert.equal(loadAuthRuntimeConfig(common).environment, "local");
+  assert.deepEqual(
+    loadAuthRuntimeConfig({ ...common, CARELENS_DEMO_ACCOUNT_ROLES: '{"demo@example.com":"doctor"}' }).demoAccountRoles,
+    { 'demo@example.com': 'doctor' },
+  );
+  assert.throws(
+    () => loadAuthRuntimeConfig({ ...common, CARELENS_ENV: 'staging', AUTH_PROVIDER: 'google', OIDC_REDIRECT_URI: 'https://example.test/api/v1/auth/callback', CARELENS_DEMO_ACCOUNT_ROLES: '{"demo@example.com":"admin"}' }),
+    /only in the local environment/,
+  );
   await assert.rejects(
     createAuthRuntime({ ...common, CARELENS_ENV: "prod" }),
     /refuses to start/,

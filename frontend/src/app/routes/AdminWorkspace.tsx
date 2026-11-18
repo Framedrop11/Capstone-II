@@ -57,6 +57,11 @@ export function AdminWorkspace() {
     queryFn: api.health,
     refetchInterval: 15_000,
   });
+  const canary = useQuery({
+    queryKey: ['admin', 'model-canary'],
+    queryFn: api.modelCanary,
+    refetchInterval: 5_000,
+  });
   const changeRole = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: Role }) => api.updateRole(userId, role),
     onSuccess: async () => {
@@ -418,6 +423,26 @@ export function AdminWorkspace() {
         <section aria-labelledby="admin-models-title">
           <Card>
             <h2 id="admin-models-title">Model versions</h2>
+            <section aria-labelledby="admin-canary-title" className="cl-admin-canary">
+              <h3 id="admin-canary-title">Automatic canary controller</h3>
+              {canary.data?.canaryController ? (
+                <>
+                  <p>
+                    Candidate: {canary.data.canaryController.candidateVersion ?? 'None'} · Traffic:{' '}
+                    {canary.data.canaryController.trafficPercent}% · Samples in stage:{' '}
+                    {canary.data.canaryController.samplesInStage}
+                  </p>
+                  <p>Controller {canary.data.canaryController.enabled ? 'active' : 'idle'}.</p>
+                  {canary.data.canaryController.history.slice(-5).reverse().map((decision, index) => (
+                    <p key={`${decision.timestamp}-${index}`}>
+                      {decision.action} → {decision.trafficPercent}% ({decision.reason})
+                    </p>
+                  ))}
+                </>
+              ) : (
+                <p>{canary.data?.status === 'unavailable' ? 'ML service unavailable.' : 'Loading canary status…'}</p>
+              )}
+            </section>
             {models.isLoading ? (
               <p role="status">Loading model versions…</p>
             ) : models.isError ? (

@@ -16,6 +16,7 @@ import { BadRequestError, ConflictError, NotFoundError } from '../errors.js';
 import { reportExplanation, screeningDisclaimer } from '../report-text.js';
 import { parseConsentScope } from '../scope.js';
 import { bearerRoute } from './auth.js';
+import { writeLog } from '../../../../../packages/shared/src/index.js';
 
 function objectId(value: string): Types.ObjectId {
   return new Types.ObjectId(value);
@@ -250,6 +251,11 @@ export function registerPatientRoutes(app: Express, dependencies: CoreApiDepende
         kind: 'report_shared',
         payload: { predictionId: prediction._id.toString(), consentId: consent._id.toString() },
       });
+      if (dependencies.emailNotifications) {
+        void dependencies.emailNotifications.reportShared(doctor.email).catch((error: unknown) => {
+          writeLog('warn', 'email_notification_failed', { service: 'carelens-core-api', event: 'report_shared', errorType: error instanceof Error ? error.name : 'UnknownError' });
+        });
+      }
       await writeAudit({ actorId: request.authPrincipal!.userId, patientId: patient._id, action: 'grant_consent' });
       response.status(201).json(serializeConsent(consent, doctor.name));
     } catch (error) {

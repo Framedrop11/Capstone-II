@@ -473,6 +473,65 @@ paths:
           }
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
+  /api/v1/doctor/notifications:
+    get:
+      tags: [Doctor]
+      operationId: listDoctorNotifications
+      security: [{ bearerAuth: [] }]
+      parameters:
+        [
+          { $ref: "#/components/parameters/Cursor" },
+          { $ref: "#/components/parameters/Limit" },
+        ]
+      responses:
+        "200":
+          description: Doctor report sharing notifications; prediction IDs are included only while consent is active
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, unreadCount, nextCursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [notificationId, kind, createdAt, readAt, accessStatus]
+                      properties:
+                        notificationId: { type: string }
+                        kind: { const: report_shared }
+                        createdAt: { type: string, format: date-time }
+                        readAt: { type: [string, "null"], format: date-time }
+                        accessStatus: { type: string, enum: [active, revoked, expired] }
+                        predictionId: { type: string }
+                  unreadCount: { type: integer, minimum: 0 }
+                  nextCursor: { type: [string, "null"] }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/v1/doctor/notifications/{notificationId}/read:
+    post:
+      tags: [Doctor]
+      operationId: markDoctorNotificationRead
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema: { type: string, pattern: "^[a-fA-F0-9]{24}$" }
+      responses:
+        "200":
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [notificationId, readAt]
+                properties:
+                  notificationId: { type: string }
+                  readAt: { type: [string, "null"], format: date-time }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+        "404": { $ref: "#/components/responses/Error" }
   /api/v1/doctor/reports/{predictionId}/access:
     post:
       tags: [Doctor]
@@ -630,6 +689,45 @@ paths:
                   { schema: { $ref: "#/components/schemas/AuditPage" } },
               },
           }
+        "401": { $ref: "#/components/responses/Error" }
+        "403": { $ref: "#/components/responses/Error" }
+  /api/v1/admin/model-canary:
+    get:
+      tags: [Admin]
+      operationId: getModelCanaryStatus
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Current ML canary controller state and recent decisions
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, canaryController]
+                properties:
+                  status: { type: string, enum: [available, unavailable] }
+                  canaryController:
+                    oneOf:
+                      - type: object
+                        required: [enabled, candidateVersion, trafficPercent, samplesInStage, history]
+                        properties:
+                          enabled: { type: boolean }
+                          candidateVersion: { type: [string, 'null'] }
+                          trafficPercent: { type: integer, minimum: 0, maximum: 100 }
+                          samplesInStage: { type: integer, minimum: 0 }
+                          history:
+                            type: array
+                            items:
+                              type: object
+                              required: [action, candidateVersion, trafficPercent, reason, metrics, timestamp]
+                              properties:
+                                action: { type: string, enum: [started, advanced, rolled_back, completed] }
+                                candidateVersion: { type: [string, 'null'] }
+                                trafficPercent: { type: integer, minimum: 0, maximum: 100 }
+                                reason: { type: string }
+                                metrics: { type: object, additionalProperties: { type: number } }
+                                timestamp: { type: number }
+                      - type: 'null'
         "401": { $ref: "#/components/responses/Error" }
         "403": { $ref: "#/components/responses/Error" }
   /api/v1/admin/model-versions:

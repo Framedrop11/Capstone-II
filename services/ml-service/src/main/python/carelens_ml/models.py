@@ -72,6 +72,15 @@ class ModelManager:
         model_dir = Path(os.environ.get("ML_MODEL_DIR", str(service_root / "models")))
         stable = load_artifact(os.environ.get("ML_STABLE_MODEL_PATH", str(model_dir / "stable.joblib")))
         canary_path = os.environ.get("ML_CANARY_MODEL_PATH")
+        environment = os.environ.get("CARELENS_ENV", "local")
+        demo_fixtures = os.environ.get("ML_DEMO_CANARY_FIXTURES", "false").lower() == "true"
+        demo_artifact = bool(canary_path and "demo-canary-" in Path(canary_path).name)
+        if environment == "prod" and (demo_fixtures or demo_artifact):
+            raise ValueError("Demo canary fixtures are forbidden in prod")
+        if demo_fixtures and environment not in {"local", "dev", "staging"}:
+            raise ValueError("ML_DEMO_CANARY_FIXTURES is allowed only in local, dev, or staging")
+        if demo_artifact and not demo_fixtures:
+            raise ValueError("Demo canary artifact requires ML_DEMO_CANARY_FIXTURES=true")
         canary = load_artifact(canary_path) if canary_path else None
         traffic = int(os.environ.get("ML_CANARY_TRAFFIC_PERCENT", "0"))
         return cls(stable, canary, traffic)

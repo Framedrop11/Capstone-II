@@ -290,21 +290,6 @@ spec:
           labelSelector:
             matchLabels:
               app.kubernetes.io/name: ml-service
-      initContainers:
-        - name: initialize-stable-model
-          image: ghcr.io/example-org/carelens-ml:replace-with-immutable-tag
-          command: ["sh", "-c", "test -s /models/stable.joblib || cp /app/models/stable.joblib /models/stable.joblib"]
-          volumeMounts:
-            - name: model-artifacts
-              mountPath: /models
-          securityContext:
-            runAsNonRoot: true
-            runAsUser: 10001
-            runAsGroup: 10001
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop: [ALL]
       containers:
         - name: ml-service
           image: ghcr.io/example-org/carelens-ml:replace-with-immutable-tag
@@ -321,9 +306,6 @@ spec:
                 secretKeyRef:
                   name: carelens-runtime
                   key: CACHE_REDIS_URL
-          volumeMounts:
-            - name: model-artifacts
-              mountPath: /models
           startupProbe:
             httpGet:
               path: /health
@@ -352,10 +334,6 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-      volumes:
-        - name: model-artifacts
-          persistentVolumeClaim:
-            claimName: model-artifacts
 ---
 apiVersion: v1
 kind: Service

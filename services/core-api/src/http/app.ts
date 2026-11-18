@@ -64,7 +64,7 @@ export async function createCoreApi(dependencies: CoreApiDependencies): Promise<
     response.setHeader('Pragma', 'no-cache');
     next();
   });
-  app.use('/api/v1/doctor/reports', (_request, response, next) => {
+  app.use('/api/v1/doctor', (_request, response, next) => {
     response.setHeader('Cache-Control', 'no-store');
     response.setHeader('Pragma', 'no-cache');
     next();

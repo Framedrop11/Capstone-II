@@ -14,9 +14,13 @@ __pycache__/
 .stage0_extract/
 .lighthouseci/
 .secrets/
+.backups/
+/services/ml-service/models/demo-canary-*.joblib
+/services/ml-service/models/demo-canary-*.json
 /logs/
 /*.log
 /reports/
 /kind-export/
 /kind-exports/
 .vercel/
+*.pem

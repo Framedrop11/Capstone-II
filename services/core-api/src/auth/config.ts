@@ -11,6 +11,7 @@ export interface AuthRuntimeConfig {
   transactionCookieKey: Uint8Array;
   googleClientId?: string;
   googleClientSecret?: string;
+  demoAccountRoles: Readonly<Record<string, 'patient' | 'doctor' | 'admin'>>;
 }
 
 type Env = Record<string, string | undefined>;
@@ -38,6 +39,21 @@ export function loadAuthRuntimeConfig(env: Env = process.env): AuthRuntimeConfig
   const providerKind = required(env, 'AUTH_PROVIDER') as OidcProviderKind;
   if (providerKind !== 'google' && providerKind !== 'mock') throw new Error('AUTH_PROVIDER must be google or mock');
   assertAuthProviderAllowed(environment, providerKind);
+  const demoAccountRoles: Record<string, 'patient' | 'doctor' | 'admin'> = {};
+  const rawDemoRoles = env['CARELENS_DEMO_ACCOUNT_ROLES']?.trim();
+  if (rawDemoRoles) {
+    if (environment !== 'local') throw new Error('CARELENS_DEMO_ACCOUNT_ROLES is supported only in the local environment');
+    let parsed: unknown;
+    try { parsed = JSON.parse(rawDemoRoles); } catch { throw new Error('CARELENS_DEMO_ACCOUNT_ROLES must be a JSON object mapping emails to roles'); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('CARELENS_DEMO_ACCOUNT_ROLES must be a JSON object mapping emails to roles');
+    for (const [email, role] of Object.entries(parsed)) {
+      const normalizedEmail = email.trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail) || !['patient', 'doctor', 'admin'].includes(String(role))) {
+        throw new Error('CARELENS_DEMO_ACCOUNT_ROLES contains an invalid email or role');
+      }
+      demoAccountRoles[normalizedEmail] = role as 'patient' | 'doctor' | 'admin';
+    }
+  }
 
   const redirectUri = required(env, 'OIDC_REDIRECT_URI');
   const parsedRedirect = new URL(redirectUri);
@@ -54,6 +70,7 @@ export function loadAuthRuntimeConfig(env: Env = process.env): AuthRuntimeConfig
     audience: required(env, 'JWT_AUDIENCE'),
     jwtSigningSecret: readSecret(env, 'JWT_SIGNING_SECRET'),
     transactionCookieKey: readSecret(env, 'OIDC_TRANSACTION_KEY'),
+    demoAccountRoles,
   };
   if (providerKind === 'google') {
     config.googleClientId = required(env, 'GOOGLE_CLIENT_ID');

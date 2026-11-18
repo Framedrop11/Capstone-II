@@ -1,6 +1,6 @@
 import type { Express } from 'express';
 import { Types } from 'mongoose';
-import { AuditLog, Consent, Outcome, Patient, Prediction } from '../../data/models.js';
+import { AuditLog, Consent, Notification, Outcome, Patient, Prediction } from '../../data/models.js';
 import { authenticateScopedReportToken } from '../../auth/scoped-report-middleware.js';
 import type { CoreApiDependencies } from '../api-types.js';
 import { writeAudit } from '../audit.js';
@@ -20,6 +20,49 @@ function duplicateKey(error: unknown): boolean {
 
 export function registerDoctorRoutes(app: Express, dependencies: CoreApiDependencies): void {
   const doctorAuth = bearerRoute(dependencies.accessTokens, 'doctor');
+
+  app.get('/api/v1/doctor/notifications', ...doctorAuth, async (request, response, next) => {
+    try {
+      const doctorId = objectId(request.authPrincipal!.userId);
+      const limit = pageLimit(request.query['limit']);
+      const cursor = decodeCursor(typeof request.query['cursor'] === 'string' ? request.query['cursor'] : undefined);
+      const filter = { recipientId: doctorId, kind: 'report_shared', ...cursorCondition('createdAt', cursor) };
+      const [rows, unreadCount] = await Promise.all([
+        Notification.find(filter).sort({ createdAt: -1, _id: -1 }).limit(limit + 1).exec(),
+        Notification.countDocuments({ recipientId: doctorId, kind: 'report_shared', readAt: null }).exec(),
+      ]);
+      const pageRows = rows.slice(0, limit);
+      const items = await Promise.all(pageRows.map(async (item) => {
+        const consentId = item.payload['consentId'];
+        const consent = typeof consentId === 'string' && Types.ObjectId.isValid(consentId)
+          ? await Consent.findOne({ _id: consentId, doctorId, patientId: item.patientId }).exec()
+          : null;
+        const active = Boolean(consent && !consent.revoked && consent.expiresAt > new Date());
+        return {
+          notificationId: item._id.toString(),
+          kind: item.kind,
+          createdAt: item.createdAt.toISOString(),
+          readAt: item.readAt?.toISOString() ?? null,
+          accessStatus: active ? 'active' : consent?.revoked ? 'revoked' : 'expired',
+          ...(active && typeof item.payload['predictionId'] === 'string' ? { predictionId: item.payload['predictionId'] } : {}),
+        };
+      }));
+      response.status(200).json({ items, unreadCount, nextCursor: rows.length > limit && pageRows.length ? encodeCursor(pageRows[pageRows.length - 1]!.createdAt, pageRows[pageRows.length - 1]!._id) : null });
+    } catch (error) { next(error); }
+  });
+
+  app.post('/api/v1/doctor/notifications/:notificationId/read', ...doctorAuth, async (request, response, next) => {
+    try {
+      const notificationId = request.params['notificationId'];
+      if (typeof notificationId !== 'string' || !Types.ObjectId.isValid(notificationId)) throw new NotFoundError('Notification not found');
+      const item = await Notification.findOneAndUpdate(
+        { _id: notificationId, recipientId: objectId(request.authPrincipal!.userId), kind: 'report_shared' },
+        { $set: { readAt: new Date() } }, { new: true },
+      ).exec();
+      if (!item) throw new NotFoundError('Notification not found');
+      response.status(200).json({ notificationId: item._id.toString(), readAt: item.readAt?.toISOString() ?? null });
+    } catch (error) { next(error); }
+  });
 
   app.get('/api/v1/doctor/shared-patients', ...doctorAuth, async (request, response, next) => {
     try {

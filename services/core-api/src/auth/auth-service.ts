@@ -20,6 +20,7 @@ export interface AuthServiceConfig {
   transactionCookieKey: Uint8Array;
   accessTokens: AccessTokenService;
   refreshSessions: RefreshSessionService;
+  demoAccountRoles?: Readonly<Record<string, 'patient' | 'doctor' | 'admin'>>;
 }
 
 export interface LoginStart {
@@ -114,11 +115,12 @@ export class AuthService {
       );
     }
     const authProvider = `${this.config.provider.kind}:${identity.subject}`;
+    const demoRole = this.config.environment === 'local' ? this.config.demoAccountRoles?.[identity.email.trim().toLowerCase()] : undefined;
     const user = await User.findOneAndUpdate(
       { authProvider },
       {
         $set: { name: identity.name, email: identity.email },
-        $setOnInsert: { role: "patient" },
+        $setOnInsert: { role: demoRole ?? "patient" },
       },
       {
         upsert: true,
@@ -129,6 +131,10 @@ export class AuthService {
     ).exec();
     if (!user)
       throw new AuthenticationError("User account could not be created");
+    if (demoRole && user.role !== demoRole) {
+      await User.updateOne({ _id: user._id }, { $set: { role: demoRole } }).exec();
+      user.role = demoRole;
+    }
     if (user.role === "patient") {
       await Patient.updateOne(
         { userId: user._id },

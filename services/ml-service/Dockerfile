@@ -9,6 +9,8 @@ WORKDIR /app
 COPY --from=dependencies /usr/local /usr/local
 COPY services/ml-service/src/main/python ./src/main/python
 COPY services/ml-service/models ./models
+ARG INCLUDE_DEMO_CANARY=false
+RUN if [ "$INCLUDE_DEMO_CANARY" != "true" ]; then rm -f ./models/demo-canary-*; fi
 COPY ml/data/uci-early-stage-diabetes.csv ./data/uci-early-stage-diabetes.csv
 RUN groupadd --system --gid 10001 carelens && useradd --system --uid 10001 --gid carelens --home-dir /app carelens \
     && chown -R carelens:carelens /app

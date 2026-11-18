@@ -246,6 +246,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/doctor/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["listDoctorNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/doctor/notifications/{notificationId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["markDoctorNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/doctor/reports/{predictionId}/access": {
         parameters: {
             query?: never;
@@ -334,6 +366,22 @@ export interface paths {
             cookie?: never;
         };
         get: operations["searchAuditLog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/model-canary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["getModelCanaryStatus"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1082,6 +1130,75 @@ export interface operations {
             403: components["responses"]["Error"];
         };
     };
+    listDoctorNotifications: {
+        parameters: {
+            query?: {
+                cursor?: components["parameters"]["Cursor"];
+                limit?: components["parameters"]["Limit"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Doctor report sharing notifications; prediction IDs are included only while consent is active */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            notificationId: string;
+                            /** @constant */
+                            kind: "report_shared";
+                            /** Format: date-time */
+                            createdAt: string;
+                            /** Format: date-time */
+                            readAt: string | null;
+                            /** @enum {string} */
+                            accessStatus: "active" | "revoked" | "expired";
+                            predictionId?: string;
+                        }[];
+                        unreadCount: number;
+                        nextCursor: string | null;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    markDoctorNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notificationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification marked as read */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        notificationId: string;
+                        /** Format: date-time */
+                        readAt: string | null;
+                    };
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+            404: components["responses"]["Error"];
+        };
+    };
     issueScopedReportToken: {
         parameters: {
             query?: never;
@@ -1248,6 +1365,48 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AuditPage"];
+                };
+            };
+            401: components["responses"]["Error"];
+            403: components["responses"]["Error"];
+        };
+    };
+    getModelCanaryStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Current ML canary controller state and recent decisions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {string} */
+                        status: "available" | "unavailable";
+                        canaryController: {
+                            enabled: boolean;
+                            candidateVersion: string | null;
+                            trafficPercent: number;
+                            samplesInStage: number;
+                            history: {
+                                /** @enum {string} */
+                                action: "started" | "advanced" | "rolled_back" | "completed";
+                                candidateVersion: string | null;
+                                trafficPercent: number;
+                                reason: string;
+                                metrics: {
+                                    [key: string]: number;
+                                };
+                                timestamp: number;
+                            }[];
+                        } | null;
+                    };
                 };
             };
             401: components["responses"]["Error"];

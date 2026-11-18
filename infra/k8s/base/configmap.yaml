@@ -9,6 +9,9 @@ data:
   PORT: "3000"
   METRICS_PORT: "9464"
   ML_SERVICE_URL: http://ml-service:8000
-  ML_STABLE_MODEL_PATH: /models/stable.joblib
+  ML_STABLE_MODEL_PATH: /app/models/stable.joblib
   ML_CANARY_TRAFFIC_PERCENT: "0"
+  ML_AUTO_CANARY_ENABLED: "false"
+  ML_CANARY_MINIMUM_SAMPLES: "5"
+  ML_CANARY_STAGE_INTERVAL_SECONDS: "60"
   TZ: UTC

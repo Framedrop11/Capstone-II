@@ -5,18 +5,28 @@ import { recordCacheOperation } from '../http/metrics.js';
 export interface ReportCacheOptions {
   ttlSeconds?: number;
   jitterSeconds?: number;
+  lockLeaseMilliseconds?: number;
+  lockWaitMilliseconds?: number;
 }
+
+const releaseLockScript = `if redis.call('get', KEYS[1]) == ARGV[1] then return redis.call('del', KEYS[1]) else return 0 end`;
 
 export class ReportReadCache {
   private readonly inFlight = new Map<string, Promise<unknown>>();
   private readonly ttlSeconds: number;
   private readonly jitterSeconds: number;
+  private readonly lockLeaseMilliseconds: number;
+  private readonly lockWaitMilliseconds: number;
 
   constructor(private readonly redis: Redis, options: ReportCacheOptions = {}) {
     this.ttlSeconds = options.ttlSeconds ?? 300;
     this.jitterSeconds = options.jitterSeconds ?? 60;
+    this.lockLeaseMilliseconds = options.lockLeaseMilliseconds ?? 4_000;
+    this.lockWaitMilliseconds = options.lockWaitMilliseconds ?? 200;
     if (!Number.isInteger(this.ttlSeconds) || this.ttlSeconds < 1) throw new Error('Report cache TTL must be positive');
     if (!Number.isInteger(this.jitterSeconds) || this.jitterSeconds < 0) throw new Error('Report cache jitter must be non-negative');
+    if (!Number.isInteger(this.lockLeaseMilliseconds) || this.lockLeaseMilliseconds < 100) throw new Error('Cache lock lease must be at least 100 ms');
+    if (!Number.isInteger(this.lockWaitMilliseconds) || this.lockWaitMilliseconds < 0) throw new Error('Cache lock wait must be non-negative');
   }
 
   async getOrLoad<T>(patientId: string, predictionId: string, loader: () => Promise<T>): Promise<T> {
@@ -49,7 +59,48 @@ export class ReportReadCache {
 
     const pending = this.inFlight.get(key) as Promise<T> | undefined;
     if (pending) return pending;
-    const load = loader().then(async (value) => {
+    const load = this.loadWithRedisLock(key, loader, ttlSeconds, store, cacheType).finally(() => {
+      if (this.inFlight.get(key) === load) this.inFlight.delete(key);
+    });
+    this.inFlight.set(key, load);
+    return load;
+  }
+
+  private async loadWithRedisLock<T>(key: string, loader: () => Promise<T>, ttlSeconds: number, store: ((value: T) => Promise<void>) | undefined, cacheType: string): Promise<T> {
+    const lockKey = `${key}:lock`;
+    const token = `${process.pid}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    let ownsLock = false;
+    const deadline = Date.now() + this.lockWaitMilliseconds;
+    do {
+      try {
+        ownsLock = (await this.redis.set(lockKey, token, 'PX', this.lockLeaseMilliseconds, 'NX')) === 'OK';
+        if (ownsLock) break;
+        recordCacheOperation(cacheType, 'lock', 'wait');
+        const cached = await this.redis.get(key);
+        if (cached !== null) {
+          recordCacheOperation(cacheType, 'read', 'coalesced');
+          return JSON.parse(cached) as T;
+        }
+      } catch {
+        recordCacheOperation(cacheType, 'lock', 'fail_open');
+        break;
+      }
+      if (Date.now() >= deadline) break;
+      await new Promise((resolve) => setTimeout(resolve, Math.min(50, Math.max(1, deadline - Date.now()))));
+    } while (Date.now() < deadline);
+
+    if (!ownsLock) recordCacheOperation(cacheType, 'lock', 'fail_open');
+    try {
+      if (ownsLock) {
+        try {
+          const cached = await this.redis.get(key);
+          if (cached !== null) {
+            recordCacheOperation(cacheType, 'read', 'coalesced');
+            return JSON.parse(cached) as T;
+          }
+        } catch { recordCacheOperation(cacheType, 'read', 'fail_open'); }
+      }
+      const value = await loader();
       if (store) await store(value);
       else try {
         const jitter = this.jitterSeconds ? Math.floor(Math.random() * (this.jitterSeconds + 1)) : 0;
@@ -60,9 +111,12 @@ export class ReportReadCache {
         // Keep the successful source-of-truth read even if Redis cannot store it.
       }
       return value;
-    }).finally(() => { if (this.inFlight.get(key) === load) this.inFlight.delete(key); });
-    this.inFlight.set(key, load);
-    return load;
+    } finally {
+      if (ownsLock) {
+        try { await this.redis.eval(releaseLockScript, 1, lockKey, token); }
+        catch { recordCacheOperation(cacheType, 'lock', 'release_fail_open'); }
+      }
+    }
   }
 
   async invalidate(patientId: string, predictionId: string): Promise<void> {

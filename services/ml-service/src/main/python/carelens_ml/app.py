@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from redis import Redis
 
 from carelens_ml.models import ModelManager, normalize_responses
+from carelens_ml.canary import CanaryController
 
 logger = logging.getLogger("carelens.ml")
 logger.setLevel(logging.INFO)
@@ -58,6 +59,15 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
 
     instance = FastAPI(title="CareLens ML Service", version="1.0.0")
     instance.state.models = models
+    canary_enabled = os.environ.get("ML_AUTO_CANARY_ENABLED", "false").lower() == "true"
+    if canary_enabled and os.environ.get("CARELENS_ENV", "local") == "prod":
+        raise RuntimeError("ML_AUTO_CANARY_ENABLED is forbidden in prod; use the production rollout process")
+    instance.state.canary_controller = CanaryController(
+        models,
+        enabled=canary_enabled,
+        minimum_samples=int(os.environ.get("ML_CANARY_MINIMUM_SAMPLES", "5")),
+        stage_interval_seconds=float(os.environ.get("ML_CANARY_STAGE_INTERVAL_SECONDS", "60")),
+    )
     instance.state.prediction_requests = 0
     instance.state.cache_hits = 0
     instance.state.cache_misses = 0
@@ -97,7 +107,9 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
 
     @instance.get("/health")
     def health_route() -> dict:
-        return models.health()
+        health = models.health()
+        health["canaryController"] = instance.state.canary_controller.state
+        return health
 
     @instance.get("/metrics", include_in_schema=False)
     def metrics_route() -> Response:
@@ -126,11 +138,22 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
             "# TYPE carelens_ml_prediction_score summary\n"
             f"carelens_ml_prediction_score_sum {instance.state.score_sum}\n"
             f"carelens_ml_prediction_score_count {instance.state.score_count}\n"
+            "# HELP carelens_ml_canary_traffic_percent Current canary traffic percentage\n"
+            "# TYPE carelens_ml_canary_traffic_percent gauge\n"
+            f"carelens_ml_canary_traffic_percent {models.canary_traffic_percent}\n"
+            "# HELP carelens_ml_canary_decisions_total Canary controller decisions by action\n"
+            "# TYPE carelens_ml_canary_decisions_total counter\n"
+            + "".join(
+                f'carelens_ml_canary_decisions_total{{action="{action}"}} {sum(1 for item in instance.state.canary_controller.history if item["action"] == action)}\n'
+                for action in ("started", "advanced", "rolled_back", "completed")
+            )
         )
         return Response(body, media_type="text/plain; version=0.0.4; charset=utf-8")
 
     @instance.post("/predict", response_model=PredictionResponse)
     def predict_route(request: PredictionRequest) -> PredictionResponse:
+        selected = None
+        started = time.perf_counter()
         try:
             responses = request.responses.model_dump()
             selected = models.select_model()
@@ -149,6 +172,12 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
                         cached_result = json.loads(cached)
                         instance.state.score_sum += cached_result["score"]
                         instance.state.score_count += 1
+                        instance.state.canary_controller.observe(
+                            selected.version,
+                            latency_ms=(time.perf_counter() - started) * 1000,
+                            score=cached_result["score"],
+                            baseline_score=(models.predict_with_model(responses, models.stable)["score"] if selected is models.canary else None),
+                        )
                         return PredictionResponse(**cached_result)
                     instance.state.cache_misses += 1
                     lock = cache.lock(f"{cache_key}:lock", timeout=4, blocking_timeout=0.2)
@@ -168,6 +197,12 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
                             cached_result = json.loads(cached)
                             instance.state.score_sum += cached_result["score"]
                             instance.state.score_count += 1
+                            instance.state.canary_controller.observe(
+                                selected.version,
+                                latency_ms=(time.perf_counter() - started) * 1000,
+                                score=cached_result["score"],
+                                baseline_score=(models.predict_with_model(responses, models.stable)["score"] if selected is models.canary else None),
+                            )
                             return PredictionResponse(**cached_result)
                     except Exception:
                         cache = None
@@ -186,9 +221,29 @@ def create_app(model_loader: Callable[[], ModelManager] = ModelManager.from_envi
             instance.state.prediction_requests += 1
             instance.state.score_sum += result["score"]
             instance.state.score_count += 1
+            instance.state.canary_controller.observe(
+                selected.version,
+                latency_ms=(time.perf_counter() - started) * 1000,
+                score=result["score"],
+                baseline_score=(models.predict_with_model(responses, models.stable)["score"] if selected is models.canary else None),
+            )
             return PredictionResponse(**result)
         except (ValueError, KeyError) as error:
+            if selected is not None:
+                instance.state.canary_controller.observe(
+                    selected.version,
+                    latency_ms=(time.perf_counter() - started) * 1000 if "started" in locals() else 0,
+                    error=True,
+                )
             raise HTTPException(status_code=422, detail=str(error)) from error
+        except Exception:
+            if selected is not None:
+                instance.state.canary_controller.observe(
+                    selected.version,
+                    latency_ms=(time.perf_counter() - started) * 1000 if "started" in locals() else 0,
+                    error=True,
+                )
+            raise
 
     return instance
 

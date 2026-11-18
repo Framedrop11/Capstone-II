@@ -1,0 +1,32 @@
+global:
+  smtp_smarthost: mailpit:1025
+  smtp_from: CareLens Alerts <alerts@carelens.local>
+  smtp_hello: carelens.local
+  smtp_require_tls: false
+
+route:
+  receiver: carelens-local-mail
+  group_by: [alertname, service]
+  group_wait: 5s
+  group_interval: 15s
+  repeat_interval: 5m
+  routes:
+    - matchers: [severity="info"]
+      receiver: carelens-local-mail
+
+receivers:
+  - name: carelens-local-mail
+    email_configs:
+      - to: carelens-alerts@carelens.local
+        send_resolved: true
+        headers:
+          subject: '[CareLens {{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        text: >-
+          {{ range .Alerts }}{{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+
+inhibit_rules:
+  - source_matchers: [severity="page"]
+    target_matchers: [severity="warning"]
+    equal: [alertname, service]

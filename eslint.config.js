@@ -23,6 +23,6 @@ export default tseslint.config(
   },
   {
     files: ['tests/load/**/*.js'],
-    languageOptions: { globals: { __ENV: 'readonly' } }
+    languageOptions: { globals: { __ENV: 'readonly', __VU: 'readonly', __ITER: 'readonly' } }
   }
 );

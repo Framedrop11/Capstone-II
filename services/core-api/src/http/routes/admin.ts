@@ -19,6 +19,22 @@ export function registerAdminRoutes(app: Express, dependencies: CoreApiDependenc
       response.status(200).json({ status: ready ? 'ready' : 'not_ready', database, queue, cache, degraded: ready && !cache });
     } catch (error) { next(error); }
   });
+  app.get('/api/v1/admin/model-canary', ...admin, async (_request, response) => {
+    if (!dependencies.mlServiceUrl) {
+      response.json({ status: 'unavailable', canaryController: null });
+      return;
+    }
+    try {
+      const health = await fetch(new URL('/health', dependencies.mlServiceUrl), {
+        signal: AbortSignal.timeout(2_000),
+      });
+      if (!health.ok) throw new Error('ML service health request failed');
+      const result = await health.json() as { canaryController?: unknown };
+      response.json({ status: 'available', canaryController: result.canaryController ?? null });
+    } catch {
+      response.json({ status: 'unavailable', canaryController: null });
+    }
+  });
   app.get('/api/v1/admin/users', ...admin, async (request, response, next) => {
     try {
       const limit = pageLimit(request.query['limit']);

@@ -6,3 +6,4 @@ resources:
 patches:
   - path: environment-patch.yaml
   - path: ingress-patch.yaml
+  - path: autoscaling-demo-patch.yaml

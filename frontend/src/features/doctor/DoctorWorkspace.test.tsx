@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DoctorWorkspace } from '../../app/routes/DoctorWorkspace';
 import { AuthSessionContext } from '../../shared/auth/AuthSessionContext';
 import { AuthSession } from '../../shared/auth/session';
@@ -39,7 +39,42 @@ function renderDoctor() {
 }
 
 describe('doctor workspace', () => {
+  beforeEach(() => {
+    server.use(
+      http.get('*/api/v1/doctor/notifications', () =>
+        HttpResponse.json({ items: [], unreadCount: 0, nextCursor: null }),
+      ),
+    );
+  });
   afterEach(() => cleanup());
+
+  it('shows consent-aware report notifications and opens an active shared report', async () => {
+    server.use(
+      http.get('*/api/v1/doctor/notifications', () =>
+        HttpResponse.json({
+          items: [{ notificationId: 'dddddddddddddddddddddddd', kind: 'report_shared', createdAt: '2026-11-17T10:00:00.000Z', readAt: null, accessStatus: 'active', predictionId }],
+          unreadCount: 1,
+          nextCursor: null,
+        }),
+      ),
+      http.get('*/api/v1/doctor/shared-patients', () =>
+        HttpResponse.json({ items: [{ patientId: 'aaaaaaaaaaaaaaaaaaaaaaaa', predictionId, consentExpiresAt: '2026-12-01T00:00:00.000Z', sharedAt: '2026-11-17T10:00:00.000Z' }], nextCursor: null }),
+      ),
+      http.post('*/api/v1/doctor/notifications/dddddddddddddddddddddddd/read', () =>
+        HttpResponse.json({ notificationId: 'dddddddddddddddddddddddd', readAt: '2026-11-17T10:01:00.000Z' }),
+      ),
+      http.post(`*/api/v1/doctor/reports/${predictionId}/access`, () =>
+        HttpResponse.json({ accessToken: 'scoped-report-token', expiresIn: 300, purpose: 'report:read' }),
+      ),
+      http.get(`*/api/v1/doctor/reports/${predictionId}`, () =>
+        HttpResponse.json({ predictionId, disclaimer: 'CareLens is a screening aid, not a diagnosis.' }),
+      ),
+    );
+    renderDoctor();
+    expect(await screen.findByRole('heading', { name: /Notifications\s+\(1 new\)/ })).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Open shared report' }));
+    expect(await screen.findByText('Access ends in')).toBeInTheDocument();
+  });
 
   it('opens a scoped report and submits an outcome while access is active', async () => {
     let outcomeBody: unknown;

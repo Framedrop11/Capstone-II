@@ -171,10 +171,18 @@ async function assertNoConsoleErrors(driver, label) {
 
 async function signIn(driver, role) {
   await driver.get(baseUrl);
-  await driver.wait(until.elementLocated(By.css('h1')), 15_000);
+  await driver.wait(until.elementLocated(By.css('#public-title')), 15_000);
+  // A prior run can leave an authenticated route open while the app's stored
+  // session is being restored. Reuse that session only when it matches role.
+  if (new URL(await driver.getCurrentUrl()).pathname === `/${role}`) {
+    await beginNetworkAndPrivacyChecks(driver);
+    return;
+  }
   const roleSelect = await driver.findElements(By.id('demo-role'));
   if (roleSelect.length) await new Select(roleSelect[0]).selectByValue(role);
-  await driver.findElement(By.xpath("//button[normalize-space()='Sign in with Google']")).click();
+  const signInButton = await driver.wait(until.elementLocated(By.css('.cl-google-button')), 15_000);
+  await driver.wait(until.elementIsEnabled(signInButton), 5_000);
+  await signInButton.click();
   await driver.wait(until.urlContains(`/${role}`), 15_000);
   await driver.wait(async (current) => (await current.getAllWindowHandles()).length === 1, 5_000);
   await beginNetworkAndPrivacyChecks(driver);
@@ -214,14 +222,25 @@ async function completeCheckup(driver) {
       )
       .click();
   }
-  await driver.wait(
-    until.elementLocated(
-      By.xpath(
-        "//*[contains(normalize-space(), 'A starting point for a conversation') or contains(normalize-space(), 'Your estimate is ready')]",
+  try {
+    await driver.wait(
+      until.elementLocated(
+        By.xpath(
+          "//*[contains(normalize-space(), 'A starting point for a conversation') or contains(normalize-space(), 'Your estimate is ready')]",
+        ),
       ),
-    ),
-    90_000,
-  );
+      90_000,
+    );
+  } catch (error) {
+    const diagnostic = await driver.executeScript(`return {
+      url: location.pathname,
+      requests: window.__careLensE2E?.requests?.map(({path,status,failed}) => ({path,status,failed: Boolean(failed)})) ?? [],
+      statusText: document.querySelector('[role="status"]')?.textContent ?? null,
+      alertPresent: Boolean(document.querySelector('[role="alert"]')),
+    };`);
+    process.stderr.write(`Questionnaire diagnostic: ${JSON.stringify(diagnostic)}\n`);
+    throw error;
+  }
   await assertAxe(driver, 'patient report');
   await assertNoOverflow(driver, 'patient report');
 }
@@ -248,13 +267,13 @@ async function shareWithDoctor(driver) {
 }
 
 async function openDoctorReport(driver) {
-  await driver.wait(
-    async () => (await driver.findElements(By.css('.cl-doctor-item'))).length > 0,
+  const notification = await driver.wait(
+    until.elementLocated(By.xpath("//button[normalize-space()='Open shared report']")),
     20_000,
   );
-  await driver.findElement(By.css('.cl-doctor-item')).click();
+  await notification.click();
   await driver.wait(until.elementLocated(By.xpath("//*[contains(., 'Access ends in')]")), 15_000);
-  await assertAxe(driver, 'doctor report');
+  await assertAxe(driver, 'doctor report opened from notification');
   await driver
     .findElement(By.id('outcome-note'))
     .sendKeys('Synthetic follow-up outcome recorded in the local demo.');
@@ -275,14 +294,7 @@ async function revokeShare(driver) {
 
 async function runFullJourney(config) {
   const patient = await createDriver(config);
-  const doctorConfig = {
-    ...config,
-    browser: config.browser === 'chrome' ? 'firefox' : 'chrome',
-    url:
-      config.browser === 'chrome'
-        ? (process.env['SELENIUM_FIREFOX_URL'] ?? 'http://localhost:4445')
-        : (process.env['SELENIUM_CHROME_URL'] ?? 'http://localhost:4444'),
-  };
+  const doctorConfig = { ...config };
   let doctor;
   try {
     doctor = await createDriver(doctorConfig);

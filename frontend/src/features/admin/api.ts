@@ -49,6 +49,7 @@ export function createAdminApi(session: AuthSession) {
           params: { query: { limit: 50, ...(cursor ? { cursor } : {}) } },
         }),
       ),
+    modelCanary: async () => unwrap(await client.GET('/api/v1/admin/model-canary')),
     promote: async (version: string) =>
       unwrap(
         await client.POST('/api/v1/admin/model-versions/{version}/promote', {

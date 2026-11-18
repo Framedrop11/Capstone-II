@@ -1,0 +1,86 @@
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongo-add-on-ingress
+spec:
+  podSelector:
+    matchLabels:
+      carelens.io/role: mongo
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              carelens.io/role: api
+        - podSelector:
+            matchLabels:
+              carelens.io/role: worker
+        - podSelector:
+            matchLabels:
+              carelens.io/role: database-init
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mongodb-init-egress
+spec:
+  podSelector:
+    matchLabels:
+      carelens.io/role: database-init
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              carelens.io/role: mongo
+      ports:
+        - protocol: TCP
+          port: 27017
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: queue-redis-add-on-ingress
+spec:
+  podSelector:
+    matchLabels:
+      carelens.io/role: queue-redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              carelens.io/role: api
+        - podSelector:
+            matchLabels:
+              carelens.io/role: worker
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: cache-redis-add-on-ingress
+spec:
+  podSelector:
+    matchLabels:
+      carelens.io/role: cache-redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              carelens.io/role: api
+        - podSelector:
+            matchLabels:
+              carelens.io/role: worker
+        - podSelector:
+            matchLabels:
+              carelens.io/role: ml
+      ports:
+        - protocol: TCP
+          port: 6379

@@ -59,6 +59,9 @@ describe('admin workspace', () => {
           degraded: false,
         }),
       ),
+      http.get('*/api/v1/admin/model-canary', () =>
+        HttpResponse.json({ status: 'unavailable', canaryController: null }),
+      ),
       http.get('*/api/v1/admin/users', () =>
         HttpResponse.json({
           items: [{ userId: patientId, name: 'Riya Sen', email: 'riya@example.test', role }],

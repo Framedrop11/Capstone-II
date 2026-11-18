@@ -16,6 +16,16 @@ export function createDoctorApi(session: AuthSession) {
   const baseUrl = getApiBaseUrl();
   const client = createApiClient(session, { baseUrl });
   return {
+    notifications: async () =>
+      unwrap(
+        await client.GET('/api/v1/doctor/notifications', { params: { query: { limit: 50 } } }),
+      ),
+    markNotificationRead: async (notificationId: string) =>
+      unwrap(
+        await client.POST('/api/v1/doctor/notifications/{notificationId}/read', {
+          params: { path: { notificationId } },
+        }),
+      ),
     worklist: async () =>
       unwrap(
         await client.GET('/api/v1/doctor/shared-patients', { params: { query: { limit: 50 } } }),

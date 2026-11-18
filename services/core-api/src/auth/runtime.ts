@@ -40,6 +40,7 @@ export async function createAuthComponents(
       transactionCookieKey: config.transactionCookieKey,
       accessTokens,
       refreshSessions: new RefreshSessionService(),
+      demoAccountRoles: config.demoAccountRoles,
     }),
   };
 }

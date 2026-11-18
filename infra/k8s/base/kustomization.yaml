@@ -10,6 +10,4 @@ resources:
   - autoscaling.yaml
   - disruption-budgets.yaml
   - network-policies.yaml
-  - scheduled-jobs.yaml
   - migrations.yaml
-  - model-artifacts.yaml
