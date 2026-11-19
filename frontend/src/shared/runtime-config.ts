@@ -12,5 +12,10 @@ declare global {
 
 export function getApiBaseUrl(): string {
   if (typeof window === 'undefined') return '';
-  return window.CARELENS_CONFIG?.apiBaseUrl || window.location.origin;
+
+  return (
+    window.CARELENS_CONFIG?.apiBaseUrl ||
+    import.meta.env['VITE_API_BASE_URL'] ||
+    window.location.origin
+  );
 }
