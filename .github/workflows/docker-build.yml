@@ -1,0 +1,39 @@
+name: Docker Build Test
+
+on:
+  pull_request:
+    branches: [demo-rc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.image }} image (no push)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: core-api-and-worker
+            dockerfile: infra/docker/node-service.Dockerfile
+          - image: ml-service
+            dockerfile: services/ml-service/Dockerfile
+          - image: frontend
+            dockerfile: frontend/Dockerfile
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build image without pushing
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          tags: carelens-${{ matrix.image }}:ci
+          push: false
