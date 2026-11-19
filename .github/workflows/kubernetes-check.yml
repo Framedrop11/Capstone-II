@@ -1,0 +1,54 @@
+name: Kubernetes Configuration Validation
+
+on:
+  pull_request:
+    branches: [demo-rc]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Render and validate Kubernetes manifests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v5
+        with:
+          version: v1.32.0
+
+      - name: Set up Go for kubeconform
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.24'
+
+      - name: Install kubeconform
+        run: |
+          go install github.com/yannh/kubeconform/cmd/kubeconform@v0.6.7
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Render and validate Kustomize configurations
+        shell: bash
+        run: |
+          set -euo pipefail
+          for config in \
+            infra/k8s/base \
+            infra/k8s/overlays/dev \
+            infra/k8s/overlays/staging \
+            infra/k8s/overlays/prod \
+            infra/k8s/addons/demo-data \
+            infra/k8s/addons/cloudflare-tunnel; do
+            name="$(printf '%s' "$config" | tr '/' '-')"
+            output="$RUNNER_TEMP/${name}.yaml"
+            echo "Rendering $config"
+            kubectl kustomize "$config" > "$output"
+            kubeconform -strict -summary "$output"
+          done
+
+      - name: Validate standalone resilience demo resources
+        run: kubeconform -strict -summary infra/k8s/kind/resilience-demo.yaml
