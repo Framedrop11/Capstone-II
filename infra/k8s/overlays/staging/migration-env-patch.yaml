@@ -1,0 +1,20 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: database-migrate
+spec:
+  template:
+    spec:
+      containers:
+        - name: migrate
+          env:
+            - name: MONGODB_APP_USER
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: MONGODB_APP_USER
+            - name: MONGODB_APP_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: MONGODB_APP_PASSWORD

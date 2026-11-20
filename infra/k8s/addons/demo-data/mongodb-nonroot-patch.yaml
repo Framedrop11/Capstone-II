@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: install-replica-key
+          command:
+            - sh
+            - -ec
+            - cp /source/keyfile /target/keyfile && chmod 0400 /target/keyfile
+          securityContext:
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL

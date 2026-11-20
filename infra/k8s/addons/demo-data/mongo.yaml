@@ -51,15 +51,14 @@ spec:
           command:
             - sh
             - -ec
-            - cp /source/keyfile /target/keyfile && chown 999:999 /target/keyfile && chmod 0400 /target/keyfile
+            - cp /source/keyfile /target/keyfile && chmod 0400 /target/keyfile
           securityContext:
-            runAsUser: 0
-            runAsGroup: 0
+            runAsUser: 999
+            runAsGroup: 999
+            runAsNonRoot: true
             allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
             capabilities:
               drop: [ALL]
-              add: [CHOWN, FOWNER]
           resources:
             requests:
               cpu: 10m

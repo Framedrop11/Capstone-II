@@ -41,6 +41,7 @@ export async function createAuthComponents(
       accessTokens,
       refreshSessions: new RefreshSessionService(),
       demoAccountRoles: config.demoAccountRoles,
+      roleAssignments: config.roleAssignments,
     }),
   };
 }

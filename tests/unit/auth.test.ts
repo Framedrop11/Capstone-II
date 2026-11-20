@@ -240,3 +240,51 @@ test("refresh cookie is scoped, secure, httpOnly and cleared on logout", () => {
   assert.match(cookie, /HttpOnly; Secure; SameSite=Strict/);
   assert.match(clearRefreshCookie(), /Max-Age=0/);
 });
+
+test("CARELENS_ROLE_ASSIGNMENTS maps verified emails to roles in every environment", () => {
+  const google = {
+    CARELENS_ENV: "staging",
+    AUTH_PROVIDER: "google",
+    OIDC_REDIRECT_URI: "https://example.test/api/v1/auth/callback",
+    JWT_ISSUER: "https://example.test",
+    JWT_AUDIENCE: "carelens-api",
+    JWT_SIGNING_SECRET: "staging-jwt-secret-that-is-at-least-32-bytes",
+    OIDC_TRANSACTION_KEY: "staging-oidc-cookie-secret-at-least-32-bytes",
+    GOOGLE_CLIENT_ID: "client-id",
+    GOOGLE_CLIENT_SECRET: "client-secret",
+  };
+  assert.deepEqual(loadAuthRuntimeConfig(google).roleAssignments, {});
+  const config = loadAuthRuntimeConfig({
+    ...google,
+    CARELENS_ROLE_ASSIGNMENTS: JSON.stringify({
+      "Doctor@Example.com": "doctor",
+      " patient@example.com ": "patient",
+      "admin@example.com": "admin",
+    }),
+  });
+  assert.deepEqual(config.roleAssignments, {
+    "doctor@example.com": "doctor",
+    "patient@example.com": "patient",
+    "admin@example.com": "admin",
+  });
+  assert.equal(config.roleAssignments["someone-else@example.com"], undefined);
+  assert.deepEqual(config.demoAccountRoles, {});
+});
+
+test("CARELENS_ROLE_ASSIGNMENTS rejects malformed input", () => {
+  const base = {
+    CARELENS_ENV: "local",
+    AUTH_PROVIDER: "mock",
+    OIDC_REDIRECT_URI: "http://localhost:3000/api/v1/auth/callback",
+    JWT_ISSUER: "http://localhost:3000",
+    JWT_AUDIENCE: "carelens-api",
+    JWT_SIGNING_SECRET: "local-jwt-secret-that-is-at-least-32-bytes",
+    OIDC_TRANSACTION_KEY: "local-oidc-cookie-secret-at-least-32-bytes",
+  };
+  for (const bad of ["not json", "[]", '{"a@b.co":"superuser"}', '{"not-an-email":"admin"}']) {
+    assert.throws(
+      () => loadAuthRuntimeConfig({ ...base, CARELENS_ROLE_ASSIGNMENTS: bad }),
+      /CARELENS_ROLE_ASSIGNMENTS/,
+    );
+  }
+});

@@ -24,3 +24,15 @@ __pycache__/
 /kind-exports/
 .vercel/
 *.pem
+
+.vercel
+.env*
+
+.tmp/
+.tmp*
+*.tar
+*.tar*
+carelens-*.yaml
+carelens-secret-patch.json
+mongodb-patch.json
+sku-debug.txt

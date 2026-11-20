@@ -1,9 +1,26 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 namespace: carelens
+
 resources:
   - ../../base
+  - ../../addons/demo-data
+
+images:
+  - name: ghcr.io/example-org/carelens-node
+    newName: carelensacr2026.azurecr.io/carelens-node
+    newTag: 20261121-roles
+  - name: ghcr.io/example-org/carelens-ml
+    newName: carelensacr2026.azurecr.io/carelens-ml
+    newTag: 20261120-031215
+  - name: ghcr.io/example-org/carelens-frontend
+    newName: carelensacr2026.azurecr.io/carelens-frontend
+    newTag: 20261120-031215
+
 patches:
   - path: environment-patch.yaml
   - path: ingress-patch.yaml
   - path: autoscaling-demo-patch.yaml
+  - path: azure-demo-patch.yaml
+  - path: migration-env-patch.yaml
+

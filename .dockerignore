@@ -15,3 +15,12 @@ coverage
 **/*.py[cod]
 target
 *.log
+
+.tmp
+.tmp*
+*.tar
+*.tar*
+carelens-*.yaml
+carelens-secret-patch.json
+mongodb-patch.json
+sku-debug.txt

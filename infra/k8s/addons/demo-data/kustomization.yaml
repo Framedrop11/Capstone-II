@@ -5,3 +5,5 @@ resources:
   - mongo.yaml
   - redis.yaml
   - network-policies.yaml
+patches:
+  - path: mongodb-nonroot-patch.yaml

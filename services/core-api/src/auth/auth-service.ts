@@ -21,6 +21,7 @@ export interface AuthServiceConfig {
   accessTokens: AccessTokenService;
   refreshSessions: RefreshSessionService;
   demoAccountRoles?: Readonly<Record<string, 'patient' | 'doctor' | 'admin'>>;
+  roleAssignments?: Readonly<Record<string, 'patient' | 'doctor' | 'admin'>>;
 }
 
 export interface LoginStart {
@@ -115,7 +116,10 @@ export class AuthService {
       );
     }
     const authProvider = `${this.config.provider.kind}:${identity.subject}`;
-    const demoRole = this.config.environment === 'local' ? this.config.demoAccountRoles?.[identity.email.trim().toLowerCase()] : undefined;
+    if (identity.emailVerified !== true) throw new AuthenticationError("Verified email is required");
+    const normalizedEmail = identity.email.trim().toLowerCase();
+    const demoRole = this.config.roleAssignments?.[normalizedEmail]
+      ?? (this.config.environment === 'local' ? this.config.demoAccountRoles?.[normalizedEmail] : undefined);
     const user = await User.findOneAndUpdate(
       { authProvider },
       {

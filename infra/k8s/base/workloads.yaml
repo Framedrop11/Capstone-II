@@ -73,6 +73,11 @@ spec:
                 secretKeyRef:
                   name: carelens-runtime
                   key: OIDC_TRANSACTION_KEY
+            - name: CARELENS_ROLE_ASSIGNMENTS
+              valueFrom:
+                secretKeyRef:
+                  name: carelens-runtime
+                  key: CARELENS_ROLE_ASSIGNMENTS
             - name: OIDC_REDIRECT_URI
               valueFrom:
                 secretKeyRef:
